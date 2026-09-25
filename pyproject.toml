@@ -1,8 +1,0 @@
-[project]
-name = "cdsi"
-version = "1.0.0"
-description = "Cyber Defense Swarm Intelligence — Distributed multi-agent cybersecurity defense platform"
-requires-python = ">=3.11"
-
-[tool.vercel]
-entrypoint = "dashboard.backend.main:app"
