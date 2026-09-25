@@ -1,0 +1,197 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cdsi-agent-ddos
+  labels:
+    app: cdsi
+    component: agent
+    agent-type: ddos
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cdsi
+      agent-type: ddos
+  template:
+    metadata:
+      labels:
+        app: cdsi
+        component: agent
+        agent-type: ddos
+    spec:
+      containers:
+        - name: agent
+          image: cdsi/agent:latest
+          env:
+            - name: AGENT_TYPE
+              value: ddos
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:9092
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+              cpu: "2"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cdsi-agent-anomaly
+  labels:
+    app: cdsi
+    component: agent
+    agent-type: anomaly
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cdsi
+      agent-type: anomaly
+  template:
+    metadata:
+      labels:
+        app: cdsi
+        component: agent
+        agent-type: anomaly
+    spec:
+      containers:
+        - name: agent
+          image: cdsi/agent:latest
+          env:
+            - name: AGENT_TYPE
+              value: anomaly
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:9092
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+              cpu: "2"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cdsi-agent-malware
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cdsi
+      agent-type: malware
+  template:
+    metadata:
+      labels:
+        app: cdsi
+        component: agent
+        agent-type: malware
+    spec:
+      containers:
+        - name: agent
+          image: cdsi/agent:latest
+          env:
+            - name: AGENT_TYPE
+              value: malware
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+              cpu: "2"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cdsi-agent-phishing
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cdsi
+      agent-type: phishing
+  template:
+    metadata:
+      labels:
+        app: cdsi
+        component: agent
+        agent-type: phishing
+    spec:
+      containers:
+        - name: agent
+          image: cdsi/agent:latest
+          env:
+            - name: AGENT_TYPE
+              value: phishing
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+              cpu: "2"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cdsi-agent-mitm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cdsi
+      agent-type: mitm
+  template:
+    metadata:
+      labels:
+        app: cdsi
+        component: agent
+        agent-type: mitm
+    spec:
+      containers:
+        - name: agent
+          image: cdsi/agent:latest
+          env:
+            - name: AGENT_TYPE
+              value: mitm
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+              cpu: "2"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cdsi-agent-ransomware
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cdsi
+      agent-type: ransomware
+  template:
+    metadata:
+      labels:
+        app: cdsi
+        component: agent
+        agent-type: ransomware
+    spec:
+      containers:
+        - name: agent
+          image: cdsi/agent:latest
+          env:
+            - name: AGENT_TYPE
+              value: ransomware
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+              cpu: "2"

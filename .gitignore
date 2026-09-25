@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+
+# ML Models & Datasets (too large for git)
+models/*/*.pkl
+models/*/*.joblib
+datasets/raw/
+datasets/processed/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node.js (Frontend)
+dashboard/frontend/node_modules/
+dashboard/frontend/.next/
+
+# Pytest
+.pytest_cache/
+
+# Logs
+*.log
+
+# Byte-compiled
+*.pyc

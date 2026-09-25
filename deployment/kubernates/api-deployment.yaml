@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cdsi-api
+  labels:
+    app: cdsi
+    component: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cdsi
+      component: api
+  template:
+    metadata:
+      labels:
+        app: cdsi
+        component: api
+    spec:
+      containers:
+        - name: api
+          image: cdsi/api:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:9092
+            - name: LOG_LEVEL
+              value: info
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "2"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cdsi-api
+spec:
+  selector:
+    app: cdsi
+    component: api
+  ports:
+    - port: 8000
+      targetPort: 8000
+  type: LoadBalancer

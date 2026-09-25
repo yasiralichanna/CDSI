@@ -1,0 +1,21 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential libffi-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+RUN mkdir -p models datasets/raw datasets/processed
+
+# Agent type set via environment variable
+ENV AGENT_TYPE=anomaly
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD python -c "print('healthy')"
+
+CMD ["python", "-c", "from cli import train; train(['--agent', '${AGENT_TYPE}'])"]
