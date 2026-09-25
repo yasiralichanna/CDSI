@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Agent, Threat, ConsensusDecision, AutomatedResponse } from "@/lib/types";
 
-const API_BASE = "http://localhost:8000";
-const WS_URL = "ws://localhost:8000/ws";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const WS_URL = API_BASE.replace(/^http/, "ws") + "/ws";
 const POLL_INTERVAL_MS = 5000;
 const WS_RECONNECT_BASE_MS = 1000;
 const WS_RECONNECT_MAX_MS = 30000;
