@@ -214,7 +214,7 @@ export default function DashboardPage() {
 
         {/* Main Content */}
         <main className="flex-1 p-6 pb-24 lg:pb-6">
-          {isStale && (
+          {isStale && lastUpdated && (
             <div className="mb-6 p-3 px-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs font-medium flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <WifiOff className="w-4 h-4 shrink-0" />

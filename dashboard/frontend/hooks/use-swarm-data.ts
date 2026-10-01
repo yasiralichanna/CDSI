@@ -27,7 +27,7 @@ export function getApiBase(): string {
 const POLL_INTERVAL_MS = 5000;
 const WS_RECONNECT_BASE_MS = 1500;
 const WS_RECONNECT_MAX_MS = 25000;
-const MAX_RECONNECT_ATTEMPTS = 6;
+const MAX_RECONNECT_ATTEMPTS = 5;
 
 export interface SwarmData {
     agents: Agent[];
@@ -179,19 +179,25 @@ export function useSwarmData(): SwarmData {
             if (unmounted.current) return;
 
             const timeSinceLastFetch = Date.now() - lastSuccessfulFetch.current;
-            const isStale = lastSuccessfulFetch.current > 0 && timeSinceLastFetch > 18000;
+            const isStale = lastSuccessfulFetch.current > 0 && timeSinceLastFetch > 20000;
 
             reconnectAttempts.current += 1;
-            const nextStatus: ConnectionStatus = 
-                reconnectAttempts.current > MAX_RECONNECT_ATTEMPTS || (isInitial && lastSuccessfulFetch.current === 0)
-                    ? "disconnected"
-                    : "reconnecting";
+
+            // Only mark disconnected if MAX_RECONNECT_ATTEMPTS exceeded
+            let nextStatus: ConnectionStatus;
+            if (reconnectAttempts.current > MAX_RECONNECT_ATTEMPTS) {
+                nextStatus = "disconnected";
+            } else if (lastSuccessfulFetch.current === 0) {
+                nextStatus = "connecting";
+            } else {
+                nextStatus = "reconnecting";
+            }
 
             setData(prev => ({
                 ...prev,
                 loading: false,
                 connectionStatus: nextStatus,
-                isStale: isStale || lastSuccessfulFetch.current > 0,
+                isStale: isStale,
                 apiBaseUrl: apiBase,
             }));
         }
@@ -315,14 +321,20 @@ export function useSwarmData(): SwarmData {
                 wsRef.current = null;
                 reconnectAttempts.current += 1;
 
-                const isStale = (Date.now() - lastSuccessfulFetch.current) > 18000;
-                const nextStatus: ConnectionStatus = 
-                    reconnectAttempts.current > MAX_RECONNECT_ATTEMPTS ? "disconnected" : "reconnecting";
+                const isStale = (Date.now() - lastSuccessfulFetch.current) > 20000;
+                let nextStatus: ConnectionStatus;
+                if (reconnectAttempts.current > MAX_RECONNECT_ATTEMPTS) {
+                    nextStatus = "disconnected";
+                } else if (lastSuccessfulFetch.current === 0) {
+                    nextStatus = "connecting";
+                } else {
+                    nextStatus = "reconnecting";
+                }
 
                 setData(prev => ({
                     ...prev,
                     connectionStatus: nextStatus,
-                    isStale: isStale || prev.isStale,
+                    isStale: isStale && prev.lastUpdated !== null,
                 }));
 
                 // Bounded exponential backoff + jitter
