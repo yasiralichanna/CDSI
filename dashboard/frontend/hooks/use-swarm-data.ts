@@ -3,7 +3,28 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Agent, Threat, ConsensusDecision, AutomatedResponse } from "@/lib/types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+function getApiBase(): string {
+    // 1. Build-time env var (if set before `npm run build`)
+    if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+
+    // 2. Runtime detection in browser
+    if (typeof window !== "undefined") {
+        const host = window.location.hostname;
+        // Local dev
+        if (host === "localhost" || host === "127.0.0.1") return "http://localhost:8000";
+        // Render: frontend is cdsi-frontend-xxx.onrender.com → backend is cdsi-backend-xxx.onrender.com
+        if (host.includes("onrender.com")) {
+            return `https://${host.replace("cdsi-frontend", "cdsi-backend")}`;
+        }
+        // Railway or other: try same-origin /api proxy or common pattern
+        return `https://${host.replace("frontend", "backend")}`;
+    }
+
+    // 3. Server-side fallback
+    return "http://localhost:8000";
+}
+
+const API_BASE = getApiBase();
 const WS_URL = API_BASE.replace(/^http/, "ws") + "/ws";
 const POLL_INTERVAL_MS = 5000;
 const WS_RECONNECT_BASE_MS = 1000;
