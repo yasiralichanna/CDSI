@@ -29,6 +29,20 @@ const WS_RECONNECT_BASE_MS = 1500;
 const WS_RECONNECT_MAX_MS = 25000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 10000): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal,
+        });
+        return response;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 export interface SwarmData {
     agents: Agent[];
     threats: Threat[];
@@ -96,10 +110,9 @@ export function useSwarmData(): SwarmData {
 
         // Priority 1: Try single aggregated state endpoint (1 request instead of 8)
         try {
-            const res = await fetch(`${apiBase}/api/state`, {
+            const res = await fetchWithTimeout(`${apiBase}/api/state`, {
                 headers: { "Accept": "application/json" },
-                signal: AbortSignal.timeout(10000),
-            });
+            }, 10000);
 
             if (res.ok) {
                 const state = await res.json();
@@ -130,10 +143,9 @@ export function useSwarmData(): SwarmData {
 
         // Priority 2 Fallback: Promise.allSettled for individual micro endpoints
         async function fetchJSON(path: string) {
-            const res = await fetch(`${apiBase}${path}`, {
+            const res = await fetchWithTimeout(`${apiBase}${path}`, {
                 headers: { "Accept": "application/json" },
-                signal: AbortSignal.timeout(8000),
-            });
+            }, 8000);
             if (!res.ok) throw new Error(`${path} returned status ${res.status}`);
             return res.json();
         }
@@ -183,7 +195,6 @@ export function useSwarmData(): SwarmData {
 
             reconnectAttempts.current += 1;
 
-            // Only mark disconnected if MAX_RECONNECT_ATTEMPTS exceeded
             let nextStatus: ConnectionStatus;
             if (reconnectAttempts.current > MAX_RECONNECT_ATTEMPTS) {
                 nextStatus = "disconnected";
