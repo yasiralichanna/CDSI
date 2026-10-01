@@ -25,9 +25,8 @@ export function getApiBase(): string {
 }
 
 const POLL_INTERVAL_MS = 4000;
-const WS_RECONNECT_BASE_MS = 1500;
-const WS_RECONNECT_MAX_MS = 25000;
-const MAX_RECONNECT_ATTEMPTS = 5;
+const WS_RECONNECT_BASE_MS = 2000;
+const WS_RECONNECT_MAX_MS = 20000;
 
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 10000): Promise<Response> {
     const controller = new AbortController();
@@ -77,7 +76,8 @@ export function useSwarmData(): SwarmData {
     });
 
     const wsRef = useRef<WebSocket | null>(null);
-    const reconnectAttempts = useRef<number>(0);
+    const restFailures = useRef<number>(0);
+    const wsReconnectAttempts = useRef<number>(0);
     const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const unmounted = useRef<boolean>(false);
     const lastSuccessfulFetch = useRef<number>(0);
@@ -104,57 +104,76 @@ export function useSwarmData(): SwarmData {
         return result;
     }, []);
 
-    // Fetch ALL data from REST endpoints with single aggregated state optimization + cache buster
+    // Fetch ALL data from REST endpoints with single aggregated state optimization + fallback
     const fetchAllData = useCallback(async (isInitial = false) => {
         const apiBase = getApiBase();
+        const urlsToTry = [
+            `${apiBase}/api/state?_t=${Date.now()}`,
+            `/api/state?_t=${Date.now()}`
+        ];
 
-        // Priority 1: Try single aggregated state endpoint with cache buster
-        try {
-            const cacheBusterUrl = `${apiBase}/api/state?_t=${Date.now()}`;
-            const res = await fetchWithTimeout(cacheBusterUrl, {
-                headers: { 
-                    "Accept": "application/json",
-                    "Cache-Control": "no-cache, no-store, must-revalidate"
-                },
-            }, 10000);
+        // Priority 1: Try /api/state aggregated endpoint (direct backend URL or relative proxy)
+        for (const url of urlsToTry) {
+            try {
+                const res = await fetchWithTimeout(url, {
+                    headers: { 
+                        "Accept": "application/json",
+                        "Cache-Control": "no-cache, no-store, must-revalidate"
+                    },
+                }, 8000);
 
-            if (res.ok) {
-                const state = await res.json();
-                if (unmounted.current) return;
+                if (res.ok) {
+                    const state = await res.json();
+                    if (unmounted.current) return;
 
-                const nowIso = new Date().toISOString();
-                lastSuccessfulFetch.current = Date.now();
-                reconnectAttempts.current = 0;
+                    const nowIso = new Date().toISOString();
+                    lastSuccessfulFetch.current = Date.now();
+                    restFailures.current = 0;
 
-                setData(prev => ({
-                    agents: Array.isArray(state.agents) ? state.agents : [],
-                    stats: state.stats || {},
-                    threats: Array.isArray(state.threats) ? mergeUniqueById(prev.threats, state.threats, "id") : [],
-                    consensus: Array.isArray(state.consensus) ? mergeUniqueById(prev.consensus, state.consensus, "threatId") : [],
-                    responses: Array.isArray(state.responses) ? mergeUniqueById(prev.responses, state.responses, "id") : [],
-                    mitre: Array.isArray(state.mitre) ? state.mitre : [],
-                    attackStats: state.attackStats || {},
-                    logs: Array.isArray(state.logs) ? state.logs : [],
-                    loading: false,
-                    connectionStatus: "connected",
-                    lastUpdated: nowIso,
-                    isStale: false,
-                    apiBaseUrl: apiBase,
-                }));
-                return;
+                    setData(prev => ({
+                        agents: Array.isArray(state.agents) ? state.agents : [],
+                        stats: state.stats || {},
+                        threats: Array.isArray(state.threats) ? mergeUniqueById(prev.threats, state.threats, "id") : [],
+                        consensus: Array.isArray(state.consensus) ? mergeUniqueById(prev.consensus, state.consensus, "threatId") : [],
+                        responses: Array.isArray(state.responses) ? mergeUniqueById(prev.responses, state.responses, "id") : [],
+                        mitre: Array.isArray(state.mitre) ? state.mitre : [],
+                        attackStats: state.attackStats || {},
+                        logs: Array.isArray(state.logs) ? state.logs : [],
+                        loading: false,
+                        connectionStatus: "connected",
+                        lastUpdated: nowIso,
+                        isStale: false,
+                        apiBaseUrl: apiBase || "https://cdsi-backend.onrender.com",
+                    }));
+                    return;
+                }
+            } catch {
+                // Try next URL in urlsToTry loop
             }
-        } catch { }
+        }
 
         // Priority 2 Fallback: Promise.allSettled for individual micro endpoints
         async function fetchJSON(path: string) {
-            const res = await fetchWithTimeout(`${apiBase}${path}?_t=${Date.now()}`, {
+            const primaryUrl = `${apiBase}${path}?_t=${Date.now()}`;
+            try {
+                const res = await fetchWithTimeout(primaryUrl, {
+                    headers: { 
+                        "Accept": "application/json",
+                        "Cache-Control": "no-cache, no-store, must-revalidate"
+                    },
+                }, 6000);
+                if (res.ok) return res.json();
+            } catch {}
+
+            // Fallback to relative path
+            const relRes = await fetchWithTimeout(`${path}?_t=${Date.now()}`, {
                 headers: { 
                     "Accept": "application/json",
                     "Cache-Control": "no-cache, no-store, must-revalidate"
                 },
-            }, 8000);
-            if (!res.ok) throw new Error(`${path} returned status ${res.status}`);
-            return res.json();
+            }, 6000);
+            if (!relRes.ok) throw new Error(`${path} returned status ${relRes.status}`);
+            return relRes.json();
         }
 
         try {
@@ -177,7 +196,7 @@ export function useSwarmData(): SwarmData {
 
             const nowIso = new Date().toISOString();
             lastSuccessfulFetch.current = Date.now();
-            reconnectAttempts.current = 0;
+            restFailures.current = 0;
 
             setData(prev => ({
                 agents: agentsRes.status === "fulfilled" && Array.isArray(agentsRes.value) ? agentsRes.value : prev.agents,
@@ -192,23 +211,23 @@ export function useSwarmData(): SwarmData {
                 connectionStatus: "connected",
                 lastUpdated: nowIso,
                 isStale: false,
-                apiBaseUrl: apiBase,
+                apiBaseUrl: apiBase || "https://cdsi-backend.onrender.com",
             }));
         } catch (error) {
             if (unmounted.current) return;
 
+            restFailures.current += 1;
             const timeSinceLastFetch = Date.now() - lastSuccessfulFetch.current;
-            const isStale = lastSuccessfulFetch.current > 0 && timeSinceLastFetch > 20000;
-
-            reconnectAttempts.current += 1;
+            const hasFetchedBefore = lastSuccessfulFetch.current > 0;
+            const isStale = hasFetchedBefore && timeSinceLastFetch > 20000;
 
             let nextStatus: ConnectionStatus;
-            if (reconnectAttempts.current > MAX_RECONNECT_ATTEMPTS) {
-                nextStatus = "disconnected";
-            } else if (lastSuccessfulFetch.current === 0) {
-                nextStatus = "connecting";
+            if (!hasFetchedBefore) {
+                nextStatus = restFailures.current > 3 ? "disconnected" : "connecting";
+            } else if (timeSinceLastFetch > 15000) {
+                nextStatus = restFailures.current > 5 ? "disconnected" : "reconnecting";
             } else {
-                nextStatus = "reconnecting";
+                nextStatus = "connected"; // Stay connected if recent fetch succeeded within 15s
             }
 
             setData(prev => ({
@@ -216,7 +235,7 @@ export function useSwarmData(): SwarmData {
                 loading: false,
                 connectionStatus: nextStatus,
                 isStale: isStale,
-                apiBaseUrl: apiBase,
+                apiBaseUrl: apiBase || "https://cdsi-backend.onrender.com",
             }));
         }
     }, [mergeUniqueById]);
@@ -247,7 +266,7 @@ export function useSwarmData(): SwarmData {
 
             ws.onopen = () => {
                 if (unmounted.current) { ws.close(); return; }
-                reconnectAttempts.current = 0;
+                wsReconnectAttempts.current = 0;
                 lastSuccessfulFetch.current = Date.now();
                 setData(prev => ({
                     ...prev,
@@ -256,7 +275,6 @@ export function useSwarmData(): SwarmData {
                     isStale: false,
                     lastUpdated: new Date().toISOString(),
                 }));
-                // Resync state to recover any missed events during disconnect gap
                 fetchAllData();
             };
 
@@ -337,26 +355,33 @@ export function useSwarmData(): SwarmData {
             ws.onclose = () => {
                 if (unmounted.current) return;
                 wsRef.current = null;
-                reconnectAttempts.current += 1;
+                wsReconnectAttempts.current += 1;
 
-                const isStale = (Date.now() - lastSuccessfulFetch.current) > 20000;
-                let nextStatus: ConnectionStatus;
-                if (reconnectAttempts.current > MAX_RECONNECT_ATTEMPTS) {
-                    nextStatus = "disconnected";
-                } else if (lastSuccessfulFetch.current === 0) {
-                    nextStatus = "connecting";
-                } else {
-                    nextStatus = "reconnecting";
+                const restIsHealthy = (Date.now() - lastSuccessfulFetch.current) < 15000;
+
+                // Only degrade connection status if REST polling is ALSO not healthy
+                if (!restIsHealthy) {
+                    const isStale = (Date.now() - lastSuccessfulFetch.current) > 20000;
+                    const hasFetchedBefore = lastSuccessfulFetch.current > 0;
+
+                    let nextStatus: ConnectionStatus;
+                    if (!hasFetchedBefore) {
+                        nextStatus = "connecting";
+                    } else if (isStale) {
+                        nextStatus = "disconnected";
+                    } else {
+                        nextStatus = "reconnecting";
+                    }
+
+                    setData(prev => ({
+                        ...prev,
+                        connectionStatus: nextStatus,
+                        isStale: isStale && prev.lastUpdated !== null,
+                    }));
                 }
 
-                setData(prev => ({
-                    ...prev,
-                    connectionStatus: nextStatus,
-                    isStale: isStale && prev.lastUpdated !== null,
-                }));
-
-                // Bounded exponential backoff + jitter
-                const expBackoff = Math.min(WS_RECONNECT_BASE_MS * Math.pow(1.5, reconnectAttempts.current), WS_RECONNECT_MAX_MS);
+                // Schedule background WS reconnection attempt
+                const expBackoff = Math.min(WS_RECONNECT_BASE_MS * Math.pow(1.5, wsReconnectAttempts.current), WS_RECONNECT_MAX_MS);
                 const jitter = Math.random() * 1000;
                 const delay = expBackoff + jitter;
 
@@ -387,3 +412,4 @@ export function useSwarmData(): SwarmData {
 
     return data;
 }
+
