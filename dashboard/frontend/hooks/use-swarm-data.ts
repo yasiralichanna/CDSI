@@ -4,43 +4,22 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import type { Agent, Threat, ConsensusDecision, AutomatedResponse } from "@/lib/types";
 
 export function getApiBase(): string {
+    // 1. Next.js environment variable
+    if (process.env.NEXT_PUBLIC_API_URL) {
+        return process.env.NEXT_PUBLIC_API_URL.trim().replace(/\/+$/, "");
+    }
+
+    // 2. Client-side browser execution
     if (typeof window !== "undefined") {
-        // 1. Check custom user backend URL from settings
-        const custom = localStorage.getItem("CDSI_BACKEND_URL");
-        if (custom && custom.trim() !== "") {
-            return custom.trim().replace(/\/+$/, "");
-        }
-
-        // 2. Build-time env var
-        if (process.env.NEXT_PUBLIC_API_URL) {
-            return process.env.NEXT_PUBLIC_API_URL.trim().replace(/\/+$/, "");
-        }
-
         const host = window.location.hostname;
-        const protocol = window.location.protocol;
-
-        // 3. Localhost dev
         if (host === "localhost" || host === "127.0.0.1") {
             return "http://localhost:8000";
         }
-
-        // 4. Render deployment auto-detection
-        if (host.includes("onrender.com")) {
-            if (host.includes("frontend")) return `${protocol}//${host.replace("frontend", "backend")}`;
-            if (host.includes("web")) return `${protocol}//${host.replace("web", "backend")}`;
-            if (host.includes("ui")) return `${protocol}//${host.replace("ui", "backend")}`;
-            if (host.includes("app")) return `${protocol}//${host.replace("app", "backend")}`;
-            
-            // Fallback pattern: if name is e.g. my-cdsi.onrender.com -> try my-cdsi-backend.onrender.com
-            const parts = host.split(".");
-            return `${protocol}//${parts[0]}-backend.${parts.slice(1).join(".")}`;
-        }
-
-        // 5. Generic auto-replacement
-        return `${protocol}//${host.replace(/frontend|ui|web|app/i, "backend")}`;
+        // Deployed environments: use same-origin relative URLs proxied by Next.js rewrites
+        return "";
     }
 
-    return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    return "http://localhost:8000";
 }
 
 const POLL_INTERVAL_MS = 5000;
@@ -58,7 +37,6 @@ interface SwarmData {
     logs: any[];
     loading: boolean;
     connected: boolean;
-    apiBaseUrl: string;
 }
 
 export function useSwarmData() {
@@ -73,7 +51,6 @@ export function useSwarmData() {
         logs: [],
         loading: true,
         connected: false,
-        apiBaseUrl: "http://localhost:8000",
     });
 
     const wsRef = useRef<WebSocket | null>(null);
@@ -83,10 +60,10 @@ export function useSwarmData() {
 
     // Fetch ALL data from REST endpoints
     const fetchAllData = useCallback(async () => {
-        const currentApiBase = getApiBase();
+        const apiBase = getApiBase();
         
         async function fetchJSON(path: string) {
-            const res = await fetch(`${currentApiBase}${path}`, {
+            const res = await fetch(`${apiBase}${path}`, {
                 signal: AbortSignal.timeout(6000)
             });
             if (!res.ok) throw new Error(`${path} returned ${res.status}`);
@@ -118,17 +95,14 @@ export function useSwarmData() {
                 logs,
                 loading: false,
                 connected: true,
-                apiBaseUrl: currentApiBase,
             }));
         } catch (error) {
             if (unmounted.current) return;
             console.warn("CDSI Backend fetch warning:", error);
-            // Ensure loading is set to false after failure so user sees dashboard with disconnection indicator
             setData(prev => ({
                 ...prev,
                 loading: false,
                 connected: false,
-                apiBaseUrl: currentApiBase,
             }));
         }
     }, []);
@@ -137,8 +111,17 @@ export function useSwarmData() {
     const connectWS = useCallback(() => {
         if (unmounted.current) return;
         
-        const currentApiBase = getApiBase();
-        const wsUrl = currentApiBase.replace(/^http/, "ws") + "/ws";
+        const apiBase = getApiBase();
+        let wsUrl: string;
+
+        if (apiBase) {
+            wsUrl = apiBase.replace(/^http/, "ws") + "/ws";
+        } else if (typeof window !== "undefined") {
+            const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+            wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+        } else {
+            wsUrl = "ws://localhost:8000/ws";
+        }
 
         if (wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) {
             return;
@@ -218,37 +201,18 @@ export function useSwarmData() {
     useEffect(() => {
         unmounted.current = false;
 
-        // Dynamic API Base state
-        setData(prev => ({ ...prev, apiBaseUrl: getApiBase() }));
-
-        // Safety timeout: set loading to false after 3 seconds max so user is NEVER stuck on loading screen
         const fallbackTimer = setTimeout(() => {
             if (!unmounted.current) {
                 setData(prev => ({ ...prev, loading: false }));
             }
         }, 3000);
 
-        // Fetch immediately
         fetchAllData();
         connectWS();
 
-        // Interval polling fallback
         const pollInterval = setInterval(() => {
             if (!unmounted.current) fetchAllData();
         }, POLL_INTERVAL_MS);
-
-        // Listen for backend URL change events from header settings
-        const handleUrlChange = () => {
-            if (wsRef.current) {
-                wsRef.current.close();
-                wsRef.current = null;
-            }
-            setData(prev => ({ ...prev, loading: true, apiBaseUrl: getApiBase() }));
-            fetchAllData();
-            connectWS();
-        };
-
-        window.addEventListener("cdsi_backend_url_changed", handleUrlChange);
 
         return () => {
             unmounted.current = true;
@@ -256,7 +220,6 @@ export function useSwarmData() {
             if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
             clearInterval(pollInterval);
             wsRef.current?.close();
-            window.removeEventListener("cdsi_backend_url_changed", handleUrlChange);
         };
     }, [fetchAllData, connectWS]);
 

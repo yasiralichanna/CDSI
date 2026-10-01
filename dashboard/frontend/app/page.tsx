@@ -176,34 +176,6 @@ export default function DashboardPage() {
 
         {/* Main Content */}
         <main className="flex-1 p-6 pb-24 lg:pb-6">
-          {!connected && (
-            <div className="mb-6 p-4 rounded-2xl bg-destructive/10 border border-destructive/20 glass-panel flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-destructive/15 flex items-center justify-center shrink-0">
-                  <AlertTriangle className="w-4 h-4 text-destructive animate-pulse" />
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-foreground">Backend Server Disconnected</p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Targeting endpoint: <code className="font-mono font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded">{apiBaseUrl}</code>
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                <p className="text-[11px] text-muted-foreground hidden md:inline">Using a custom Render URL?</p>
-                <button
-                  onClick={() => {
-                    const btn = document.querySelector('[title="Backend Connection Settings"]') as HTMLButtonElement;
-                    btn?.click();
-                  }}
-                  className="px-3 py-1.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-medium transition-all shadow-sm flex items-center gap-1.5"
-                >
-                  Set Backend URL
-                </button>
-              </div>
-            </div>
-          )}
-
           {activeTab === "overview" && (
             <div className="space-y-6">
               <div>
