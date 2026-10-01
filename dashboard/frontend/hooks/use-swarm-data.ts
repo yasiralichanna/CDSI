@@ -112,6 +112,9 @@ export function useSwarmData(): SwarmData {
             `/api/state?_t=${Date.now()}`
         ];
 
+        const hasFetchedBefore = lastSuccessfulFetch.current > 0;
+        const fetchTimeoutMs = hasFetchedBefore ? 10000 : 25000;
+
         // Priority 1: Try /api/state aggregated endpoint (direct backend URL or relative proxy)
         for (const url of urlsToTry) {
             try {
@@ -120,7 +123,7 @@ export function useSwarmData(): SwarmData {
                         "Accept": "application/json",
                         "Cache-Control": "no-cache, no-store, must-revalidate"
                     },
-                }, 8000);
+                }, fetchTimeoutMs);
 
                 if (res.ok) {
                     const state = await res.json();
@@ -161,7 +164,7 @@ export function useSwarmData(): SwarmData {
                         "Accept": "application/json",
                         "Cache-Control": "no-cache, no-store, must-revalidate"
                     },
-                }, 6000);
+                }, 8000);
                 if (res.ok) return res.json();
             } catch {}
 
@@ -171,7 +174,7 @@ export function useSwarmData(): SwarmData {
                     "Accept": "application/json",
                     "Cache-Control": "no-cache, no-store, must-revalidate"
                 },
-            }, 6000);
+            }, 8000);
             if (!relRes.ok) throw new Error(`${path} returned status ${relRes.status}`);
             return relRes.json();
         }
@@ -219,20 +222,31 @@ export function useSwarmData(): SwarmData {
             restFailures.current += 1;
             const timeSinceLastFetch = Date.now() - lastSuccessfulFetch.current;
             const hasFetchedBefore = lastSuccessfulFetch.current > 0;
-            const isStale = hasFetchedBefore && timeSinceLastFetch > 20000;
+            const isStale = hasFetchedBefore && timeSinceLastFetch > 25000;
 
             let nextStatus: ConnectionStatus;
+            let keepLoading = false;
+
             if (!hasFetchedBefore) {
-                nextStatus = restFailures.current > 3 ? "disconnected" : "connecting";
-            } else if (timeSinceLastFetch > 15000) {
+                // Cold start window: allow up to 10 retry cycles (~60s) before marking disconnected
+                if (restFailures.current > 10) {
+                    nextStatus = "disconnected";
+                    keepLoading = false;
+                } else {
+                    nextStatus = "connecting";
+                    keepLoading = true; // keep loading indicator visible during backend warmup
+                }
+            } else if (timeSinceLastFetch > 20000) {
                 nextStatus = restFailures.current > 5 ? "disconnected" : "reconnecting";
+                keepLoading = false;
             } else {
-                nextStatus = "connected"; // Stay connected if recent fetch succeeded within 15s
+                nextStatus = "connected";
+                keepLoading = false;
             }
 
             setData(prev => ({
                 ...prev,
-                loading: false,
+                loading: keepLoading,
                 connectionStatus: nextStatus,
                 isStale: isStale,
                 apiBaseUrl: apiBase || "https://cdsi-backend.onrender.com",
