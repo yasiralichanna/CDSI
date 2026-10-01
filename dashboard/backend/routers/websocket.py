@@ -69,10 +69,10 @@ async def websocket_endpoint(websocket: WebSocket):
         # Stream updates
         while True:
             try:
-                message = await asyncio.wait_for(queue.get(), timeout=30)
+                message = await asyncio.wait_for(queue.get(), timeout=20)
                 await send_ws_json(message)
             except asyncio.TimeoutError:
-                # Send heartbeat
+                # Send heartbeat every 20s to prevent Render proxy timeouts
                 await send_ws_json({"type": "heartbeat", "data": {}})
             except Exception:
                 break

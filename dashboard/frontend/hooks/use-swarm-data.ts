@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Agent, Threat, ConsensusDecision, AutomatedResponse } from "@/lib/types";
 
+export type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
+
 export function getApiBase(): string {
     if (process.env.NEXT_PUBLIC_API_URL) {
         return process.env.NEXT_PUBLIC_API_URL.trim().replace(/\/+$/, "");
@@ -22,20 +24,12 @@ export function getApiBase(): string {
     return "https://cdsi-backend.onrender.com";
 }
 
-const POLL_INTERVAL_MS = 3000;
-const WS_RECONNECT_BASE_MS = 2000;
-const WS_RECONNECT_MAX_MS = 30000;
+const POLL_INTERVAL_MS = 4000;
+const WS_RECONNECT_BASE_MS = 1500;
+const WS_RECONNECT_MAX_MS = 25000;
+const MAX_RECONNECT_ATTEMPTS = 5;
 
-const DEFAULT_AGENTS: Agent[] = [
-    { id: "AGT-001", name: "Anomaly Sentinel", type: "anomaly", status: "active", trustScore: 94, detectionAccuracy: 97.2, currentLoad: 12, lastActivity: new Date().toISOString(), recentDetections: 4 },
-    { id: "AGT-002", name: "Malware Hunter", type: "malware", status: "active", trustScore: 91, detectionAccuracy: 94.8, currentLoad: 8, lastActivity: new Date().toISOString(), recentDetections: 2 },
-    { id: "AGT-003", name: "Phishing Guard", type: "phishing", status: "active", trustScore: 89, detectionAccuracy: 92.5, currentLoad: 5, lastActivity: new Date().toISOString(), recentDetections: 1 },
-    { id: "AGT-004", name: "DDoS Shield", type: "ddos", status: "active", trustScore: 86, detectionAccuracy: 89.4, currentLoad: 15, lastActivity: new Date().toISOString(), recentDetections: 6 },
-    { id: "AGT-005", name: "MITM Detector", type: "mitm", status: "active", trustScore: 92, detectionAccuracy: 95.1, currentLoad: 3, lastActivity: new Date().toISOString(), recentDetections: 0 },
-    { id: "AGT-006", name: "Ransom Blocker", type: "ransomware", status: "active", trustScore: 95, detectionAccuracy: 98.0, currentLoad: 7, lastActivity: new Date().toISOString(), recentDetections: 3 },
-];
-
-interface SwarmData {
+export interface SwarmData {
     agents: Agent[];
     threats: Threat[];
     stats: any;
@@ -45,12 +39,15 @@ interface SwarmData {
     attackStats: Record<string, any>;
     logs: any[];
     loading: boolean;
-    connected: boolean;
+    connectionStatus: ConnectionStatus;
+    lastUpdated: string | null;
+    isStale: boolean;
+    apiBaseUrl: string;
 }
 
-export function useSwarmData() {
+export function useSwarmData(): SwarmData {
     const [data, setData] = useState<SwarmData>({
-        agents: DEFAULT_AGENTS,
+        agents: [],
         threats: [],
         stats: {},
         consensus: [],
@@ -58,26 +55,51 @@ export function useSwarmData() {
         mitre: [],
         attackStats: {},
         logs: [],
-        loading: false,
-        connected: false,
+        loading: true,
+        connectionStatus: "connecting",
+        lastUpdated: null,
+        isStale: false,
+        apiBaseUrl: "https://cdsi-backend.onrender.com",
     });
 
     const wsRef = useRef<WebSocket | null>(null);
-    const reconnectDelay = useRef(WS_RECONNECT_BASE_MS);
+    const reconnectAttempts = useRef<number>(0);
     const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const unmounted = useRef(false);
+    const unmounted = useRef<boolean>(false);
     const lastSuccessfulFetch = useRef<number>(0);
 
-    // Fetch ALL data from REST endpoints
-    const fetchAllData = useCallback(async () => {
+    // Deduplication Helpers
+    const mergeUniqueById = useCallback(<T extends { id?: string; threatId?: string }>(
+        existing: T[],
+        incoming: T[],
+        keyField: "id" | "threatId" = "id"
+    ): T[] => {
+        const seen = new Set<string>();
+        const result: T[] = [];
+        for (const item of [...incoming, ...existing]) {
+            const key = item[keyField];
+            if (key) {
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    result.push(item);
+                }
+            } else {
+                result.push(item);
+            }
+        }
+        return result;
+    }, []);
+
+    // Fetch ALL data from REST endpoints (Authoritative state recovery)
+    const fetchAllData = useCallback(async (isInitial = false) => {
         const apiBase = getApiBase();
-        
+
         async function fetchJSON(path: string) {
             const res = await fetch(`${apiBase}${path}`, {
                 headers: { "Accept": "application/json" },
-                signal: AbortSignal.timeout(8000)
+                signal: AbortSignal.timeout(7000),
             });
-            if (!res.ok) throw new Error(`${path} returned ${res.status}`);
+            if (!res.ok) throw new Error(`${path} returned status ${res.status}`);
             return res.json();
         }
 
@@ -94,38 +116,52 @@ export function useSwarmData() {
             ]);
 
             if (unmounted.current) return;
+
+            const nowIso = new Date().toISOString();
             lastSuccessfulFetch.current = Date.now();
+            reconnectAttempts.current = 0;
 
             setData(prev => ({
-                agents: Array.isArray(agents) && agents.length > 0 ? agents : prev.agents,
-                stats: stats || prev.stats,
-                threats: Array.isArray(threats) ? threats : prev.threats,
-                consensus: Array.isArray(consensus) ? consensus : prev.consensus,
-                responses: Array.isArray(responses) ? responses : prev.responses,
-                mitre: Array.isArray(mitre) ? mitre : prev.mitre,
-                attackStats: attackStats || prev.attackStats,
-                logs: Array.isArray(logs) ? logs : prev.logs,
+                agents: Array.isArray(agents) ? agents : [],
+                stats: stats || {},
+                threats: Array.isArray(threats) ? mergeUniqueById(prev.threats, threats, "id") : [],
+                consensus: Array.isArray(consensus) ? mergeUniqueById(prev.consensus, consensus, "threatId") : [],
+                responses: Array.isArray(responses) ? mergeUniqueById(prev.responses, responses, "id") : [],
+                mitre: Array.isArray(mitre) ? mitre : [],
+                attackStats: attackStats || {},
+                logs: Array.isArray(logs) ? logs : [],
                 loading: false,
-                connected: true,
+                connectionStatus: "connected",
+                lastUpdated: nowIso,
+                isStale: false,
+                apiBaseUrl: apiBase,
             }));
         } catch (error) {
             if (unmounted.current) return;
-            console.warn("CDSI Backend fetch warning:", error);
-            const isStale = (Date.now() - lastSuccessfulFetch.current) > 20000;
-            if (isStale) {
-                setData(prev => ({
-                    ...prev,
-                    loading: false,
-                    connected: false,
-                }));
-            }
-        }
-    }, []);
 
-    // WebSocket connection with auto-reconnect
+            const timeSinceLastFetch = Date.now() - lastSuccessfulFetch.current;
+            const isStale = lastSuccessfulFetch.current > 0 && timeSinceLastFetch > 12000;
+            
+            reconnectAttempts.current += 1;
+            const nextStatus: ConnectionStatus = 
+                reconnectAttempts.current > MAX_RECONNECT_ATTEMPTS || (isInitial && lastSuccessfulFetch.current === 0)
+                    ? "disconnected"
+                    : "reconnecting";
+
+            setData(prev => ({
+                ...prev,
+                loading: false,
+                connectionStatus: nextStatus,
+                isStale: isStale || lastSuccessfulFetch.current > 0,
+                apiBaseUrl: apiBase,
+            }));
+        }
+    }, [mergeUniqueById]);
+
+    // WebSocket connection with bounded exponential backoff + jitter
     const connectWS = useCallback(() => {
         if (unmounted.current) return;
-        
+
         const apiBase = getApiBase();
         let wsUrl: string;
 
@@ -148,53 +184,85 @@ export function useSwarmData() {
 
             ws.onopen = () => {
                 if (unmounted.current) { ws.close(); return; }
-                reconnectDelay.current = WS_RECONNECT_BASE_MS;
-                setData(prev => ({ ...prev, connected: true, loading: false }));
+                reconnectAttempts.current = 0;
+                lastSuccessfulFetch.current = Date.now();
+                setData(prev => ({
+                    ...prev,
+                    connectionStatus: "connected",
+                    loading: false,
+                    isStale: false,
+                    lastUpdated: new Date().toISOString(),
+                }));
+                // Resync state to recover any missed events during disconnect gap
+                fetchAllData();
             };
 
             ws.onmessage = (event) => {
                 if (unmounted.current) return;
+                lastSuccessfulFetch.current = Date.now();
+                const nowIso = new Date().toISOString();
+
                 try {
                     const message = JSON.parse(event.data);
                     const { type, data: payload } = message;
+
+                    if (type === "heartbeat") {
+                        setData(prev => ({
+                            ...prev,
+                            connectionStatus: "connected",
+                            isStale: false,
+                            lastUpdated: nowIso,
+                        }));
+                        return;
+                    }
 
                     setData(prev => {
                         switch (type) {
                             case "initial_state":
                                 return {
                                     ...prev,
-                                    agents: payload.agents || prev.agents,
-                                    threats: payload.threats || prev.threats,
+                                    agents: Array.isArray(payload.agents) ? payload.agents : prev.agents,
+                                    threats: Array.isArray(payload.threats) ? mergeUniqueById(prev.threats, payload.threats, "id") : prev.threats,
                                     stats: payload.stats || prev.stats,
-                                    consensus: payload.consensus || prev.consensus,
-                                    responses: payload.responses || prev.responses,
+                                    consensus: Array.isArray(payload.consensus) ? mergeUniqueById(prev.consensus, payload.consensus, "threatId") : prev.consensus,
+                                    responses: Array.isArray(payload.responses) ? mergeUniqueById(prev.responses, payload.responses, "id") : prev.responses,
                                     loading: false,
-                                    connected: true,
+                                    connectionStatus: "connected",
+                                    isStale: false,
+                                    lastUpdated: nowIso,
                                 };
                             case "threat_alert":
                                 return {
                                     ...prev,
-                                    threats: [payload, ...prev.threats.filter(t => t.id !== payload.id)].slice(0, 50),
-                                    connected: true,
+                                    threats: mergeUniqueById(prev.threats, [payload], "id").slice(0, 50),
+                                    connectionStatus: "connected",
+                                    isStale: false,
+                                    lastUpdated: nowIso,
                                 };
                             case "agent_update":
                                 return {
                                     ...prev,
                                     agents: payload,
-                                    connected: true,
+                                    connectionStatus: "connected",
+                                    isStale: false,
+                                    lastUpdated: nowIso,
                                 };
                             case "consensus_update":
                                 return {
                                     ...prev,
-                                    consensus: [payload, ...prev.consensus.filter(c => c.threatId !== payload.threatId)].slice(0, 30),
-                                    connected: true,
+                                    consensus: mergeUniqueById(prev.consensus, [payload], "threatId").slice(0, 30),
+                                    connectionStatus: "connected",
+                                    isStale: false,
+                                    lastUpdated: nowIso,
                                 };
                             case "response_action":
                                 return {
                                     ...prev,
-                                    responses: [payload, ...prev.responses.filter(r => r.id !== payload.id)].slice(0, 30),
-                                    threats: prev.threats.map(t => t.id === payload.threatId ? { ...t, status: "mitigated" } : t),
-                                    connected: true,
+                                    responses: mergeUniqueById(prev.responses, [payload], "id").slice(0, 30),
+                                    threats: prev.threats.map(t => t.id === payload.threatId ? { ...t, status: "mitigated" as any } : t),
+                                    connectionStatus: "connected",
+                                    isStale: false,
+                                    lastUpdated: nowIso,
                                 };
                             default:
                                 return prev;
@@ -205,25 +273,39 @@ export function useSwarmData() {
 
             ws.onclose = () => {
                 if (unmounted.current) return;
-                const isStale = (Date.now() - lastSuccessfulFetch.current) > 20000;
-                if (isStale) {
-                    setData(prev => ({ ...prev, connected: false }));
-                }
-                const delay = reconnectDelay.current;
-                reconnectDelay.current = Math.min(delay * 2, WS_RECONNECT_MAX_MS);
+                wsRef.current = null;
+                reconnectAttempts.current += 1;
+
+                const isStale = (Date.now() - lastSuccessfulFetch.current) > 12000;
+                const nextStatus: ConnectionStatus = 
+                    reconnectAttempts.current > MAX_RECONNECT_ATTEMPTS ? "disconnected" : "reconnecting";
+
+                setData(prev => ({
+                    ...prev,
+                    connectionStatus: nextStatus,
+                    isStale: isStale || prev.isStale,
+                }));
+
+                // Bounded exponential backoff + jitter
+                const expBackoff = Math.min(WS_RECONNECT_BASE_MS * Math.pow(1.5, reconnectAttempts.current), WS_RECONNECT_MAX_MS);
+                const jitter = Math.random() * 1000;
+                const delay = expBackoff + jitter;
+
                 reconnectTimer.current = setTimeout(connectWS, delay);
             };
 
             ws.onerror = () => {};
         } catch { }
-    }, []);
+    }, [fetchAllData, mergeUniqueById]);
 
     useEffect(() => {
         unmounted.current = false;
 
-        fetchAllData();
+        // Initial fetch and WS connect
+        fetchAllData(true);
         connectWS();
 
+        // Interval polling loop
         const pollInterval = setInterval(() => {
             if (!unmounted.current) fetchAllData();
         }, POLL_INTERVAL_MS);

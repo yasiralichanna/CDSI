@@ -4,7 +4,7 @@ import { useState } from "react";
 import { agentTypeLabels } from "@/lib/constants";
 import type { Threat, ThreatSeverity, ThreatStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { AlertTriangle, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp, WifiOff } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 const severityConfig: Record<ThreatSeverity, { label: string; class: string }> = {
@@ -21,31 +21,71 @@ const statusConfig: Record<ThreatStatus, { label: string; icon: typeof Clock }> 
   false_positive: { label: "False Positive", icon: XCircle },
 };
 
-export function ThreatFeed({ threats = [] }: { threats?: Threat[] }) {
+interface ThreatFeedProps {
+  threats?: Threat[];
+  connectionStatus?: "connecting" | "connected" | "reconnecting" | "disconnected";
+  isStale?: boolean;
+}
+
+export function ThreatFeed({
+  threats = [],
+  connectionStatus = "connected",
+  isStale = false,
+}: ThreatFeedProps) {
   const [expandedThreat, setExpandedThreat] = useState<string | null>(null);
+  const isOffline = connectionStatus === "disconnected" || (connectionStatus === "reconnecting" && isStale);
 
   return (
     <div className="card-3d overflow-hidden">
       <div className="flex items-center justify-between p-5 border-b border-border/50">
         <h3 className="text-sm font-semibold text-card-foreground flex items-center gap-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-pulse" />
+          <span className={cn(
+            "w-1.5 h-1.5 rounded-full animate-pulse",
+            isOffline ? "bg-destructive" : "bg-success"
+          )} />
           Live Threat Feed
         </h3>
         <div className="flex items-center gap-2">
           <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive" />
+            <span className={cn(
+              "animate-ping absolute inline-flex h-full w-full rounded-full opacity-75",
+              isOffline ? "bg-destructive" : "bg-success"
+            )} />
+            <span className={cn(
+              "relative inline-flex rounded-full h-2 w-2",
+              isOffline ? "bg-destructive" : "bg-success"
+            )} />
           </span>
-          <span className="text-[11px] text-destructive font-semibold uppercase tracking-wider">Real-time</span>
+          <span className={cn(
+            "text-[11px] font-semibold uppercase tracking-wider",
+            isOffline ? "text-destructive" : "text-success"
+          )}>
+            {isOffline ? "Offline" : "Real-time"}
+          </span>
         </div>
       </div>
+
       <div className="divide-y divide-border/30 max-h-96 overflow-y-auto">
         {threats.length === 0 ? (
           <div className="p-12 text-center text-sm text-muted-foreground">
-            <div className="w-12 h-12 rounded-2xl bg-success/10 flex items-center justify-center mx-auto mb-3">
-              <CheckCircle className="w-6 h-6 text-success" />
-            </div>
-            No threats detected in the last 24 hours
+            {isOffline ? (
+              <>
+                <div className="w-12 h-12 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto mb-3">
+                  <WifiOff className="w-6 h-6 text-destructive animate-pulse" />
+                </div>
+                <p className="font-medium text-foreground">Threat Data Unavailable</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Backend connection is offline. Threat feed will resume upon reconnection.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="w-12 h-12 rounded-2xl bg-success/10 flex items-center justify-center mx-auto mb-3">
+                  <CheckCircle className="w-6 h-6 text-success" />
+                </div>
+                No threats detected in the last 24 hours
+              </>
+            )}
           </div>
         ) : (
           threats.map((threat) => {

@@ -25,8 +25,11 @@ import {
   FileStack,
   History,
   Target,
+  Clock,
+  WifiOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatDistanceToNow } from "date-fns";
 
 type TabId = "overview" | "agents" | "threats" | "consensus" | "attacks" | "responses" | "intel" | "logs";
 
@@ -49,7 +52,20 @@ const navItems: NavItem[] = [
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
-  const { agents, threats, stats, consensus, responses, mitre, attackStats, logs, loading, connected, apiBaseUrl } = useSwarmData();
+  const {
+    agents,
+    threats,
+    stats,
+    consensus,
+    responses,
+    mitre,
+    attackStats,
+    logs,
+    loading,
+    connectionStatus,
+    lastUpdated,
+    isStale,
+  } = useSwarmData();
 
   if (loading) {
     return (
@@ -118,28 +134,50 @@ export default function DashboardPage() {
 
           <div className="p-4 border-t border-border/50">
             <div className="p-4 rounded-xl bg-gradient-to-br from-primary/[0.04] to-neon-purple/[0.04] border border-primary/10">
-              <div className="flex items-center gap-2 mb-3">
-                <Activity className="w-4 h-4 text-primary" />
-                <span className="text-[11px] font-bold text-foreground uppercase tracking-wider">System Status</span>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-primary" />
+                  <span className="text-[11px] font-bold text-foreground uppercase tracking-wider">System Status</span>
+                </div>
+                {isStale && (
+                  <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-amber-500/10 text-amber-500 border border-amber-500/20 uppercase tracking-wider">
+                    Stale
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <span className="relative flex h-2.5 w-2.5">
                   <span className={cn(
                     "animate-ping absolute inline-flex h-full w-full rounded-full opacity-75",
-                    connected ? "bg-success" : "bg-destructive"
+                    connectionStatus === "connected" && "bg-success",
+                    (connectionStatus === "connecting" || connectionStatus === "reconnecting") && "bg-amber-500",
+                    connectionStatus === "disconnected" && "bg-destructive"
                   )} />
                   <span className={cn(
                     "relative inline-flex rounded-full h-2.5 w-2.5",
-                    connected ? "bg-success" : "bg-destructive"
+                    connectionStatus === "connected" && "bg-success",
+                    (connectionStatus === "connecting" || connectionStatus === "reconnecting") && "bg-amber-500",
+                    connectionStatus === "disconnected" && "bg-destructive"
                   )} />
                 </span>
                 <span className={cn(
                   "text-xs font-semibold",
-                  connected ? "text-success" : "text-destructive"
+                  connectionStatus === "connected" && "text-success",
+                  (connectionStatus === "connecting" || connectionStatus === "reconnecting") && "text-amber-500",
+                  connectionStatus === "disconnected" && "text-destructive"
                 )}>
-                  {connected ? "Backend Connected" : "Connection Lost"}
+                  {connectionStatus === "connected" && "Backend Connected"}
+                  {connectionStatus === "connecting" && "Connecting..."}
+                  {connectionStatus === "reconnecting" && "Reconnecting..."}
+                  {connectionStatus === "disconnected" && "Backend Offline"}
                 </span>
               </div>
+              {lastUpdated && (
+                <p className="text-[10px] text-muted-foreground mt-2 flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  Updated {formatDistanceToNow(new Date(lastUpdated), { addSuffix: true })}
+                </p>
+              )}
             </div>
           </div>
         </aside>
@@ -176,6 +214,16 @@ export default function DashboardPage() {
 
         {/* Main Content */}
         <main className="flex-1 p-6 pb-24 lg:pb-6">
+          {isStale && (
+            <div className="mb-6 p-3 px-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs font-medium flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <WifiOff className="w-4 h-4 shrink-0" />
+                <span>Backend connection interrupted. Displaying cached data from {lastUpdated ? formatDistanceToNow(new Date(lastUpdated), { addSuffix: true }) : "previous sync"}.</span>
+              </div>
+              <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-amber-500/20 font-bold">Stale Mode</span>
+            </div>
+          )}
+
           {activeTab === "overview" && (
             <div className="space-y-6">
               <div>
@@ -187,8 +235,8 @@ export default function DashboardPage() {
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard
                   title="Active Agents"
-                  value={`${activeAgents}/${agents.length}`}
-                  change={`${agents.filter((a) => a.status === "degraded").length} degraded`}
+                  value={agents.length > 0 ? `${activeAgents}/${agents.length}` : "0/0"}
+                  change={agents.length > 0 ? `${agents.filter((a) => a.status === "degraded").length} degraded` : "No active backend agents"}
                   changeType="neutral"
                   icon={Bot}
                   iconColor="text-primary"
@@ -223,7 +271,7 @@ export default function DashboardPage() {
               <div className="grid lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
                   <AgentTable agents={agents} />
-                  <ThreatFeed threats={threats} />
+                  <ThreatFeed threats={threats} connectionStatus={connectionStatus} isStale={isStale} />
                 </div>
                 <div className="space-y-6">
                   <SwarmVisualization agents={agents} />
@@ -249,7 +297,7 @@ export default function DashboardPage() {
                   </h3>
                   <div className="space-y-4">
                     {agents.length === 0 ? (
-                      <p className="text-xs text-muted-foreground text-center py-8">No agents active</p>
+                      <p className="text-xs text-muted-foreground text-center py-8">No backend agents active</p>
                     ) : (
                       agents.map((agent) => (
                         <div key={agent.id} className="flex items-center gap-4 group">
@@ -280,7 +328,7 @@ export default function DashboardPage() {
                 <h2 className="text-xl font-bold text-foreground tracking-tight">Live Threat Feed</h2>
                 <p className="text-sm text-muted-foreground mt-0.5">Real-time threat detection and status</p>
               </div>
-              <ThreatFeed threats={threats} />
+              <ThreatFeed threats={threats} connectionStatus={connectionStatus} isStale={isStale} />
             </div>
           )}
 
