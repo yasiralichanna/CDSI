@@ -225,7 +225,7 @@ export function SwarmVisualization({ agents = [] }: { agents?: Agent[] }) {
       canvas.removeEventListener("mousemove", handleMouseMove);
       cancelAnimationFrame(animationRef.current);
     };
-  }, []);
+  }, [agents]);
 
   return (
     <div className="relative card-3d p-5">
