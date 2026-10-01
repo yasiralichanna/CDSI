@@ -24,10 +24,10 @@ export function getApiBase(): string {
     return "https://cdsi-backend.onrender.com";
 }
 
-const POLL_INTERVAL_MS = 4000;
+const POLL_INTERVAL_MS = 5000;
 const WS_RECONNECT_BASE_MS = 1500;
 const WS_RECONNECT_MAX_MS = 25000;
-const MAX_RECONNECT_ATTEMPTS = 5;
+const MAX_RECONNECT_ATTEMPTS = 6;
 
 export interface SwarmData {
     agents: Agent[];
@@ -90,21 +90,56 @@ export function useSwarmData(): SwarmData {
         return result;
     }, []);
 
-    // Fetch ALL data from REST endpoints (Authoritative state recovery)
+    // Fetch ALL data from REST endpoints with single aggregated state optimization
     const fetchAllData = useCallback(async (isInitial = false) => {
         const apiBase = getApiBase();
 
+        // Priority 1: Try single aggregated state endpoint (1 request instead of 8)
+        try {
+            const res = await fetch(`${apiBase}/api/state`, {
+                headers: { "Accept": "application/json" },
+                signal: AbortSignal.timeout(10000),
+            });
+
+            if (res.ok) {
+                const state = await res.json();
+                if (unmounted.current) return;
+
+                const nowIso = new Date().toISOString();
+                lastSuccessfulFetch.current = Date.now();
+                reconnectAttempts.current = 0;
+
+                setData(prev => ({
+                    agents: Array.isArray(state.agents) ? state.agents : [],
+                    stats: state.stats || {},
+                    threats: Array.isArray(state.threats) ? mergeUniqueById(prev.threats, state.threats, "id") : [],
+                    consensus: Array.isArray(state.consensus) ? mergeUniqueById(prev.consensus, state.consensus, "threatId") : [],
+                    responses: Array.isArray(state.responses) ? mergeUniqueById(prev.responses, state.responses, "id") : [],
+                    mitre: Array.isArray(state.mitre) ? state.mitre : [],
+                    attackStats: state.attackStats || {},
+                    logs: Array.isArray(state.logs) ? state.logs : [],
+                    loading: false,
+                    connectionStatus: "connected",
+                    lastUpdated: nowIso,
+                    isStale: false,
+                    apiBaseUrl: apiBase,
+                }));
+                return;
+            }
+        } catch { }
+
+        // Priority 2 Fallback: Promise.allSettled for individual micro endpoints
         async function fetchJSON(path: string) {
             const res = await fetch(`${apiBase}${path}`, {
                 headers: { "Accept": "application/json" },
-                signal: AbortSignal.timeout(7000),
+                signal: AbortSignal.timeout(8000),
             });
             if (!res.ok) throw new Error(`${path} returned status ${res.status}`);
             return res.json();
         }
 
         try {
-            const [agents, stats, threats, consensus, responses, mitre, attackStats, logs] = await Promise.all([
+            const results = await Promise.allSettled([
                 fetchJSON("/api/agents"),
                 fetchJSON("/api/stats"),
                 fetchJSON("/api/threats"),
@@ -117,19 +152,23 @@ export function useSwarmData(): SwarmData {
 
             if (unmounted.current) return;
 
+            const [agentsRes, statsRes, threatsRes, consensusRes, responsesRes, mitreRes, attackStatsRes, logsRes] = results;
+            const anySuccess = results.some(r => r.status === "fulfilled");
+            if (!anySuccess) throw new Error("All REST endpoints failed");
+
             const nowIso = new Date().toISOString();
             lastSuccessfulFetch.current = Date.now();
             reconnectAttempts.current = 0;
 
             setData(prev => ({
-                agents: Array.isArray(agents) ? agents : [],
-                stats: stats || {},
-                threats: Array.isArray(threats) ? mergeUniqueById(prev.threats, threats, "id") : [],
-                consensus: Array.isArray(consensus) ? mergeUniqueById(prev.consensus, consensus, "threatId") : [],
-                responses: Array.isArray(responses) ? mergeUniqueById(prev.responses, responses, "id") : [],
-                mitre: Array.isArray(mitre) ? mitre : [],
-                attackStats: attackStats || {},
-                logs: Array.isArray(logs) ? logs : [],
+                agents: agentsRes.status === "fulfilled" && Array.isArray(agentsRes.value) ? agentsRes.value : prev.agents,
+                stats: statsRes.status === "fulfilled" ? statsRes.value : prev.stats,
+                threats: threatsRes.status === "fulfilled" && Array.isArray(threatsRes.value) ? mergeUniqueById(prev.threats, threatsRes.value, "id") : prev.threats,
+                consensus: consensusRes.status === "fulfilled" && Array.isArray(consensusRes.value) ? mergeUniqueById(prev.consensus, consensusRes.value, "threatId") : prev.consensus,
+                responses: responsesRes.status === "fulfilled" && Array.isArray(responsesRes.value) ? mergeUniqueById(prev.responses, responsesRes.value, "id") : prev.responses,
+                mitre: mitreRes.status === "fulfilled" && Array.isArray(mitreRes.value) ? mitreRes.value : prev.mitre,
+                attackStats: attackStatsRes.status === "fulfilled" ? attackStatsRes.value : prev.attackStats,
+                logs: logsRes.status === "fulfilled" && Array.isArray(logsRes.value) ? logsRes.value : prev.logs,
                 loading: false,
                 connectionStatus: "connected",
                 lastUpdated: nowIso,
@@ -140,8 +179,8 @@ export function useSwarmData(): SwarmData {
             if (unmounted.current) return;
 
             const timeSinceLastFetch = Date.now() - lastSuccessfulFetch.current;
-            const isStale = lastSuccessfulFetch.current > 0 && timeSinceLastFetch > 12000;
-            
+            const isStale = lastSuccessfulFetch.current > 0 && timeSinceLastFetch > 18000;
+
             reconnectAttempts.current += 1;
             const nextStatus: ConnectionStatus = 
                 reconnectAttempts.current > MAX_RECONNECT_ATTEMPTS || (isInitial && lastSuccessfulFetch.current === 0)
@@ -276,7 +315,7 @@ export function useSwarmData(): SwarmData {
                 wsRef.current = null;
                 reconnectAttempts.current += 1;
 
-                const isStale = (Date.now() - lastSuccessfulFetch.current) > 12000;
+                const isStale = (Date.now() - lastSuccessfulFetch.current) > 18000;
                 const nextStatus: ConnectionStatus = 
                     reconnectAttempts.current > MAX_RECONNECT_ATTEMPTS ? "disconnected" : "reconnecting";
 
@@ -301,11 +340,9 @@ export function useSwarmData(): SwarmData {
     useEffect(() => {
         unmounted.current = false;
 
-        // Initial fetch and WS connect
         fetchAllData(true);
         connectWS();
 
-        // Interval polling loop
         const pollInterval = setInterval(() => {
             if (!unmounted.current) fetchAllData();
         }, POLL_INTERVAL_MS);

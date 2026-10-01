@@ -91,3 +91,17 @@ async def system_stats():
 async def attack_stats():
     """Attack type specific statistics."""
     return swarm_manager.get_attack_stats()
+
+@app.get("/api/state")
+async def full_system_state():
+    """Aggregated full system state endpoint for single-request dashboard sync."""
+    return {
+        "agents": swarm_manager.get_agents(),
+        "stats": swarm_manager.get_system_stats(),
+        "threats": swarm_manager.get_threats()[-50:],
+        "consensus": swarm_manager.get_consensus_decisions()[-30:],
+        "responses": swarm_manager.get_responses()[-30:],
+        "mitre": swarm_manager.get_mitre_techniques(),
+        "attackStats": swarm_manager.get_attack_stats(),
+        "logs": swarm_manager.get_audit_logs()[-30:],
+    }
