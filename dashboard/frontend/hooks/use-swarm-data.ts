@@ -13,13 +13,16 @@ export function getApiBase(): string {
         if (host === "localhost" || host === "127.0.0.1") {
             return "http://localhost:8000";
         }
+        if (host.includes("onrender.com")) {
+            return "https://cdsi-backend.onrender.com";
+        }
         return "";
     }
 
-    return "http://localhost:8000";
+    return "https://cdsi-backend.onrender.com";
 }
 
-const POLL_INTERVAL_MS = 5000;
+const POLL_INTERVAL_MS = 3000;
 const WS_RECONNECT_BASE_MS = 2000;
 const WS_RECONNECT_MAX_MS = 30000;
 
@@ -72,7 +75,7 @@ export function useSwarmData() {
         async function fetchJSON(path: string) {
             const res = await fetch(`${apiBase}${path}`, {
                 headers: { "Accept": "application/json" },
-                signal: AbortSignal.timeout(6000)
+                signal: AbortSignal.timeout(8000)
             });
             if (!res.ok) throw new Error(`${path} returned ${res.status}`);
             return res.json();
@@ -107,8 +110,8 @@ export function useSwarmData() {
             }));
         } catch (error) {
             if (unmounted.current) return;
-            // Only set connected: false if we haven't had a successful fetch in the last 15s
-            const isStale = (Date.now() - lastSuccessfulFetch.current) > 15000;
+            console.warn("CDSI Backend fetch warning:", error);
+            const isStale = (Date.now() - lastSuccessfulFetch.current) > 20000;
             if (isStale) {
                 setData(prev => ({
                     ...prev,
@@ -171,23 +174,27 @@ export function useSwarmData() {
                             case "threat_alert":
                                 return {
                                     ...prev,
-                                    threats: [payload, ...prev.threats].slice(0, 50),
+                                    threats: [payload, ...prev.threats.filter(t => t.id !== payload.id)].slice(0, 50),
+                                    connected: true,
                                 };
                             case "agent_update":
                                 return {
                                     ...prev,
                                     agents: payload,
+                                    connected: true,
                                 };
                             case "consensus_update":
                                 return {
                                     ...prev,
-                                    consensus: [payload, ...prev.consensus].slice(0, 30),
+                                    consensus: [payload, ...prev.consensus.filter(c => c.threatId !== payload.threatId)].slice(0, 30),
+                                    connected: true,
                                 };
                             case "response_action":
                                 return {
                                     ...prev,
-                                    responses: [payload, ...prev.responses].slice(0, 30),
-                                    threats: prev.threats.map(t => t.id === payload.threatId ? { ...t, status: "mitigated" } : t)
+                                    responses: [payload, ...prev.responses.filter(r => r.id !== payload.id)].slice(0, 30),
+                                    threats: prev.threats.map(t => t.id === payload.threatId ? { ...t, status: "mitigated" } : t),
+                                    connected: true,
                                 };
                             default:
                                 return prev;
@@ -198,8 +205,7 @@ export function useSwarmData() {
 
             ws.onclose = () => {
                 if (unmounted.current) return;
-                // Only mark disconnected if REST is also failing
-                const isStale = (Date.now() - lastSuccessfulFetch.current) > 15000;
+                const isStale = (Date.now() - lastSuccessfulFetch.current) > 20000;
                 if (isStale) {
                     setData(prev => ({ ...prev, connected: false }));
                 }

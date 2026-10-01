@@ -8,7 +8,7 @@ const nextConfig = {
     unoptimized: true,
   },
   async rewrites() {
-    const backendUrl = (process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_URL || 'http://localhost:8000').replace(/\/+$/, '');
+    const backendUrl = (process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_URL || 'https://cdsi-backend.onrender.com').replace(/\/+$/, '');
     return [
       {
         source: '/api/:path*',

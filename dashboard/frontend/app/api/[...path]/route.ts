@@ -22,7 +22,7 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
 
 async function handleProxy(request: NextRequest, params: { path: string[] }) {
     const pathStr = params.path ? params.path.join("/") : "";
-    const backendBase = (process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_URL || "http://localhost:8000").replace(/\/+$/, "");
+    const backendBase = (process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_URL || "https://cdsi-backend.onrender.com").replace(/\/+$/, "");
     const targetUrl = `${backendBase}/api/${pathStr}${request.nextUrl.search}`;
 
     try {
