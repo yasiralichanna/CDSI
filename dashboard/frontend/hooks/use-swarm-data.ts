@@ -24,7 +24,7 @@ export function getApiBase(): string {
     return "https://cdsi-backend.onrender.com";
 }
 
-const POLL_INTERVAL_MS = 5000;
+const POLL_INTERVAL_MS = 4000;
 const WS_RECONNECT_BASE_MS = 1500;
 const WS_RECONNECT_MAX_MS = 25000;
 const MAX_RECONNECT_ATTEMPTS = 5;
@@ -104,14 +104,18 @@ export function useSwarmData(): SwarmData {
         return result;
     }, []);
 
-    // Fetch ALL data from REST endpoints with single aggregated state optimization
+    // Fetch ALL data from REST endpoints with single aggregated state optimization + cache buster
     const fetchAllData = useCallback(async (isInitial = false) => {
         const apiBase = getApiBase();
 
-        // Priority 1: Try single aggregated state endpoint (1 request instead of 8)
+        // Priority 1: Try single aggregated state endpoint with cache buster
         try {
-            const res = await fetchWithTimeout(`${apiBase}/api/state`, {
-                headers: { "Accept": "application/json" },
+            const cacheBusterUrl = `${apiBase}/api/state?_t=${Date.now()}`;
+            const res = await fetchWithTimeout(cacheBusterUrl, {
+                headers: { 
+                    "Accept": "application/json",
+                    "Cache-Control": "no-cache, no-store, must-revalidate"
+                },
             }, 10000);
 
             if (res.ok) {
@@ -143,8 +147,11 @@ export function useSwarmData(): SwarmData {
 
         // Priority 2 Fallback: Promise.allSettled for individual micro endpoints
         async function fetchJSON(path: string) {
-            const res = await fetchWithTimeout(`${apiBase}${path}`, {
-                headers: { "Accept": "application/json" },
+            const res = await fetchWithTimeout(`${apiBase}${path}?_t=${Date.now()}`, {
+                headers: { 
+                    "Accept": "application/json",
+                    "Cache-Control": "no-cache, no-store, must-revalidate"
+                },
             }, 8000);
             if (!res.ok) throw new Error(`${path} returned status ${res.status}`);
             return res.json();
