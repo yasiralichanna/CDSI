@@ -1,0 +1,35 @@
+services:
+  # ── Backend (FastAPI + Python) ──
+  - type: web
+    name: cdsi-backend
+    runtime: python
+    repo: https://github.com/yasiralichanna/CDSI.git
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn dashboard.backend.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: USE_SIMULATION
+        value: "true"
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: JWT_SECRET_KEY
+        generateValue: true
+    healthCheckPath: /health
+
+  # ── Frontend (Next.js) ──
+  - type: web
+    name: cdsi-frontend
+    runtime: node
+    repo: https://github.com/yasiralichanna/CDSI.git
+    branch: main
+    rootDir: dashboard/frontend
+    buildCommand: npm install && npm run build
+    startCommand: npm run start -- -p $PORT
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          name: cdsi-backend
+          type: web
+          property: url

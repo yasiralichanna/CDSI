@@ -141,7 +141,20 @@ class SwarmManager:
                         "instance": agent_instance  # Store instance for real-time inference
                     }
                 except Exception as e:
-                    logger.error("swarm.agent_init_error", agent=agent_type, error=str(e))
+                    logger.warning("swarm.agent_init_fallback", agent=agent_type, error=str(e),
+                                   msg="Falling back to simulation mode for this agent")
+                    # Fall back to simulation mode for this agent
+                    self._agents[cfg["id"]] = {
+                        "id": cfg["id"],
+                        "name": cfg["name"],
+                        "type": agent_type,
+                        "status": "active",
+                        "trustScore": cfg["trust"],
+                        "detectionAccuracy": cfg["trust"] + 3.2,
+                        "currentLoad": 0,
+                        "lastActivity": datetime.now(timezone.utc).isoformat(),
+                        "recentDetections": 0,
+                    }
             else:
                 # Simulation mode (legacy)
                 self._agents[cfg["id"]] = {
