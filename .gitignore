@@ -14,9 +14,7 @@ env/
 # Environment variables
 .env
 
-# ML Models & Datasets (too large for git)
-models/*/*.pkl
-models/*/*.joblib
+# Datasets (too large for git)
 datasets/raw/
 datasets/processed/
 
