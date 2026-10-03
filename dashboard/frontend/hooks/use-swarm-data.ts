@@ -6,25 +6,22 @@ import type { Agent, Threat, ConsensusDecision, AutomatedResponse } from "@/lib/
 export type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
 
 export function getApiBase(): string {
-    const envUrl = process.env.NEXT_PUBLIC_API_URL?.trim().replace(/\/+$/, "");
-    if (envUrl && envUrl.startsWith("https://")) {
-        return envUrl;
-    }
-
-
+    // DO NOT use process.env.NEXT_PUBLIC_API_URL — Render bakes incorrect values
+    // into the bundle at build time. Use hostname detection instead.
     if (typeof window !== "undefined") {
         const host = window.location.hostname;
         if (host === "localhost" || host === "127.0.0.1") {
             return "http://localhost:8000";
         }
+        // Any Render deployment → use the known backend URL
         if (host.includes("onrender.com")) {
             return "https://cdsi-backend.onrender.com";
         }
         return "";
     }
-
     return "https://cdsi-backend.onrender.com";
 }
+
 
 const POLL_INTERVAL_MS = 4000;
 const WS_RECONNECT_BASE_MS = 2000;
