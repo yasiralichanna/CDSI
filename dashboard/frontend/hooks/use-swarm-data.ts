@@ -120,8 +120,7 @@ export function useSwarmData(): SwarmData {
             try {
                 const res = await fetchWithTimeout(url, {
                     headers: { 
-                        "Accept": "application/json",
-                        "Cache-Control": "no-cache, no-store, must-revalidate"
+                        "Accept": "application/json"
                     },
                 }, fetchTimeoutMs);
 
@@ -161,8 +160,7 @@ export function useSwarmData(): SwarmData {
             try {
                 const res = await fetchWithTimeout(primaryUrl, {
                     headers: { 
-                        "Accept": "application/json",
-                        "Cache-Control": "no-cache, no-store, must-revalidate"
+                        "Accept": "application/json"
                     },
                 }, 8000);
                 if (res.ok) return res.json();
@@ -171,8 +169,7 @@ export function useSwarmData(): SwarmData {
             // Fallback to relative path
             const relRes = await fetchWithTimeout(`${path}?_t=${Date.now()}`, {
                 headers: { 
-                    "Accept": "application/json",
-                    "Cache-Control": "no-cache, no-store, must-revalidate"
+                    "Accept": "application/json"
                 },
             }, 8000);
             if (!relRes.ok) throw new Error(`${path} returned status ${relRes.status}`);
