@@ -6,9 +6,11 @@ import type { Agent, Threat, ConsensusDecision, AutomatedResponse } from "@/lib/
 export type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
 
 export function getApiBase(): string {
-    if (process.env.NEXT_PUBLIC_API_URL) {
-        return process.env.NEXT_PUBLIC_API_URL.trim().replace(/\/+$/, "");
+    const envUrl = process.env.NEXT_PUBLIC_API_URL?.trim().replace(/\/+$/, "");
+    if (envUrl && envUrl.startsWith("https://")) {
+        return envUrl;
     }
+
 
     if (typeof window !== "undefined") {
         const host = window.location.hostname;
