@@ -29,7 +29,4 @@ services:
       - key: NODE_VERSION
         value: "20"
       - key: NEXT_PUBLIC_API_URL
-        fromService:
-          name: cdsi-backend
-          type: web
-          property: url
+        value: "https://cdsi-backend.onrender.com"
