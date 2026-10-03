@@ -30,7 +30,7 @@ const nextConfig = {
     ];
   },
   async rewrites() {
-    const backendUrl = (process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_URL || 'https://cdsi-backend.onrender.com').replace(/\/+$/, '');
+    const backendUrl = 'https://cdsi-backend.onrender.com';
     return [
       {
         source: '/api/:path*',
