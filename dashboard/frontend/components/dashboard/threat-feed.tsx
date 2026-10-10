@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { agentTypeLabels } from "@/lib/constants";
 import type { Threat, ThreatSeverity, ThreatStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp, WifiOff } from "lucide-react";
+import { AlertTriangle, CheckCircle, Clock, XCircle, WifiOff } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 const severityConfig: Record<ThreatSeverity, { label: string; class: string }> = {
@@ -32,7 +31,6 @@ export function ThreatFeed({
   connectionStatus = "connected",
   isStale = false,
 }: ThreatFeedProps) {
-  const [expandedThreat, setExpandedThreat] = useState<string | null>(null);
   const isOffline = connectionStatus === "disconnected" || (connectionStatus === "reconnecting" && isStale);
 
   return (
@@ -98,10 +96,9 @@ export function ThreatFeed({
               <div
                 key={threat.id}
                 className={cn(
-                  "p-4 transition-all duration-300 cursor-pointer",
+                  "p-4 transition-all duration-300",
                   isCritical ? "hover:bg-destructive/[0.03] border-l-2 border-l-destructive/50" : "hover:bg-primary/[0.02]"
                 )}
-                onClick={() => setExpandedThreat(expandedThreat === threat.id ? null : threat.id)}
               >
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
                   <div className="flex-1 min-w-0">
@@ -141,33 +138,11 @@ export function ThreatFeed({
                         threat.status === "false_positive" && "text-muted-foreground"
                       )}>{status.label}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] sm:text-[11px] text-muted-foreground">
-                        {formatDistanceToNow(new Date(threat.timestamp), { addSuffix: true })}
-                      </span>
-                      <div className="text-muted-foreground transition-transform duration-200">
-                        {expandedThreat === threat.id ? <ChevronUp className="w-4 h-4"/> : <ChevronDown className="w-4 h-4"/>}
-                      </div>
-                    </div>
+                    <span className="text-[10px] sm:text-[11px] text-muted-foreground">
+                      {formatDistanceToNow(new Date(threat.timestamp), { addSuffix: true })}
+                    </span>
                   </div>
                 </div>
-                
-                {expandedThreat === threat.id && threat.metadata?.features && (
-                  <div className="mt-4 p-3.5 sm:p-4 rounded-xl bg-muted/50 border border-border/50 text-left cursor-text" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                      <p className="text-[10px] font-bold text-foreground uppercase tracking-[0.15em]">Raw ML Features</p>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1.5 text-xs font-mono">
-                      {Object.entries(threat.metadata.features).map(([key, val]) => (
-                        <div key={key} className="flex justify-between items-center border-b border-border/30 pb-1">
-                          <span className="text-muted-foreground truncate mr-2 text-[11px]" title={key}>{key}</span>
-                          <span className="text-foreground font-semibold text-[11px]">{String(val)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
               </div>
             );

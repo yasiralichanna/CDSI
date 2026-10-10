@@ -238,10 +238,13 @@ class SwarmManager:
         
         result = {}
         for t, s in self._attack_stats.items():
+            # Only report accuracy when attacks have actually been detected
+            detected = s["detected"]
+            accuracy = round(agent_type_map.get(t, 0), 1) if detected > 0 else 0.0
             result[t] = {
-                "detected": s["detected"],
+                "detected": detected,
                 "mitigated": s["mitigated"],
-                "accuracy": round(agent_type_map.get(t, 0), 1),
+                "accuracy": accuracy,
             }
         return result
 

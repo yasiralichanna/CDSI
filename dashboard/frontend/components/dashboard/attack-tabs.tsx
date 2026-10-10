@@ -99,7 +99,9 @@ export function AttackTabs() {
               <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary transition-transform duration-300 group-hover:scale-110" />
               <span className="text-[10px] sm:text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">Accuracy</span>
             </div>
-            <p className="text-xl sm:text-2xl font-bold text-card-foreground">{stats.accuracy}%</p>
+            <p className="text-xl sm:text-2xl font-bold text-card-foreground">
+              {stats.detected > 0 ? `${stats.accuracy}%` : <span className="text-muted-foreground text-base">N/A</span>}
+            </p>
           </div>
         </div>
 
