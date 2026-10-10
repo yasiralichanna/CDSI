@@ -84,7 +84,8 @@ export function AgentTable({ agents = [] }: { agents?: Agent[] }) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div className="overflow-x-auto">
+      {/* Desktop Table View */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="text-left text-[11px] text-muted-foreground border-b border-border/50 uppercase tracking-wider">
@@ -178,6 +179,88 @@ export function AgentTable({ agents = [] }: { agents?: Agent[] }) {
           </tbody>
         </table>
       </div>
+
+      {/* Mobile Card View */}
+      <div className="md:hidden divide-y divide-border/30">
+        {filteredAgents.length === 0 ? (
+          <div className="p-8 text-center text-sm text-muted-foreground">
+            No active agents in swarm
+          </div>
+        ) : (
+          filteredAgents.map((agent) => {
+            const Icon = agentIcons[agent.type];
+            const status = statusConfig[agent.status];
+
+            return (
+              <div key={agent.id} className="p-4 space-y-3 hover:bg-primary/[0.02] transition-colors">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/10 to-neon-purple/10 flex items-center justify-center flex-shrink-0">
+                      <Icon className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-card-foreground truncate">{agent.name}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[11px] text-muted-foreground font-mono">{agent.id}</span>
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground">
+                          {agentTypeLabels[agent.type]?.replace(" Detection", "") || agent.type}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <span className={cn("px-2 py-0.5 text-[10px] font-semibold rounded-lg flex-shrink-0 badge-glow", status.class)}>
+                    {status.label}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5 pt-1 text-xs">
+                  {/* Trust Score */}
+                  <div className="p-2.5 rounded-lg bg-muted/30 border border-border/30">
+                    <div className="flex items-center justify-between mb-1.5 text-[10px] text-muted-foreground">
+                      <span>Trust Score</span>
+                      <span className="font-bold text-card-foreground">{agent.trustScore}%</span>
+                    </div>
+                    <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className={cn(
+                          "h-full rounded-full transition-all duration-500",
+                          agent.trustScore >= 90 ? "bg-success" :
+                            agent.trustScore >= 70 ? "bg-warning" : "bg-destructive"
+                        )}
+                        style={{ width: `${agent.trustScore}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Current Load */}
+                  <div className="p-2.5 rounded-lg bg-muted/30 border border-border/30">
+                    <div className="flex items-center justify-between mb-1.5 text-[10px] text-muted-foreground">
+                      <span>Load</span>
+                      <span className="font-bold text-card-foreground">{agent.currentLoad}%</span>
+                    </div>
+                    <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className={cn(
+                          "h-full rounded-full transition-all duration-500",
+                          agent.currentLoad >= 80 ? "bg-destructive" :
+                            agent.currentLoad >= 50 ? "bg-warning" : "bg-success"
+                        )}
+                        style={{ width: `${agent.currentLoad}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] pt-1 text-muted-foreground px-0.5">
+                  <span>Accuracy: <strong className="text-foreground">{agent.detectionAccuracy}%</strong></span>
+                  <span>Detections: <strong className="text-primary font-bold">{agent.recentDetections}</strong></span>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }
+

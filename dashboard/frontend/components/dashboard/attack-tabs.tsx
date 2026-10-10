@@ -58,57 +58,57 @@ export function AttackTabs() {
   return (
     <div className="card-3d overflow-hidden">
       <div className="border-b border-border/50">
-        <div className="flex overflow-x-auto">
+        <div className="flex overflow-x-auto no-scrollbar touch-scroll">
           {attackTypes.map(({ type, icon: Icon }) => (
             <button
               key={type}
               onClick={() => setActiveType(type)}
               className={cn(
-                "flex items-center gap-2 px-5 py-3.5 text-sm font-semibold whitespace-nowrap border-b-2 transition-all duration-300",
+                "flex items-center gap-1.5 sm:gap-2 px-3.5 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm font-semibold whitespace-nowrap border-b-2 transition-all duration-300 flex-shrink-0",
                 activeType === type
                   ? "border-primary text-primary bg-primary/[0.04]"
                   : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50"
               )}
             >
-              <Icon className={cn("w-4 h-4 transition-transform duration-300", activeType === type && "scale-110")} />
+              <Icon className={cn("w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform duration-300", activeType === type && "scale-110")} />
               {agentTypeLabels[type].replace(" Detection", "")}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="p-5">
+      <div className="p-3.5 sm:p-5">
         {/* Stats Row */}
-        <div className="grid grid-cols-3 gap-3 mb-6">
-          <div className="p-4 rounded-xl bg-muted/30 border border-border/30 transition-all duration-300 hover:bg-destructive/[0.03] hover:border-destructive/15 group">
-            <div className="flex items-center gap-2 mb-2">
-              <Target className="w-4 h-4 text-destructive transition-transform duration-300 group-hover:scale-110" />
-              <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">Detected</span>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 mb-4 sm:mb-6">
+          <div className="p-3 sm:p-4 rounded-xl bg-muted/30 border border-border/30 transition-all duration-300 hover:bg-destructive/[0.03] hover:border-destructive/15 group">
+            <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
+              <Target className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-destructive transition-transform duration-300 group-hover:scale-110" />
+              <span className="text-[10px] sm:text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">Detected</span>
             </div>
-            <p className="text-2xl font-bold text-card-foreground">{stats.detected}</p>
+            <p className="text-xl sm:text-2xl font-bold text-card-foreground">{stats.detected}</p>
           </div>
-          <div className="p-4 rounded-xl bg-muted/30 border border-border/30 transition-all duration-300 hover:bg-success/[0.03] hover:border-success/15 group">
-            <div className="flex items-center gap-2 mb-2">
-              <Shield className="w-4 h-4 text-success transition-transform duration-300 group-hover:scale-110" />
-              <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">Mitigated</span>
+          <div className="p-3 sm:p-4 rounded-xl bg-muted/30 border border-border/30 transition-all duration-300 hover:bg-success/[0.03] hover:border-success/15 group">
+            <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
+              <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-success transition-transform duration-300 group-hover:scale-110" />
+              <span className="text-[10px] sm:text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">Mitigated</span>
             </div>
-            <p className="text-2xl font-bold text-success">{stats.mitigated}</p>
+            <p className="text-xl sm:text-2xl font-bold text-success">{stats.mitigated}</p>
           </div>
-          <div className="p-4 rounded-xl bg-muted/30 border border-border/30 transition-all duration-300 hover:bg-primary/[0.03] hover:border-primary/15 group">
-            <div className="flex items-center gap-2 mb-2">
-              <TrendingUp className="w-4 h-4 text-primary transition-transform duration-300 group-hover:scale-110" />
-              <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">Accuracy</span>
+          <div className="p-3 sm:p-4 rounded-xl bg-muted/30 border border-border/30 transition-all duration-300 hover:bg-primary/[0.03] hover:border-primary/15 group">
+            <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
+              <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary transition-transform duration-300 group-hover:scale-110" />
+              <span className="text-[10px] sm:text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">Accuracy</span>
             </div>
-            <p className="text-2xl font-bold text-card-foreground">{stats.accuracy}%</p>
+            <p className="text-xl sm:text-2xl font-bold text-card-foreground">{stats.accuracy}%</p>
           </div>
         </div>
 
         {/* Trend Chart */}
-        <div className="mb-6">
-          <p className="text-[10px] text-muted-foreground mb-3 uppercase tracking-[0.15em] font-bold">24-Hour Detection Trend</p>
-          <div className="h-48 rounded-xl bg-muted/20 p-2">
+        <div className="mb-4 sm:mb-6">
+          <p className="text-[10px] text-muted-foreground mb-2 sm:mb-3 uppercase tracking-[0.15em] font-bold">24-Hour Detection Trend</p>
+          <div className="h-40 sm:h-48 rounded-xl bg-muted/20 p-2">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trendData}>
+              <AreaChart data={trendData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="detectionGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.2} />
@@ -172,14 +172,14 @@ export function AttackTabs() {
               {typeThreats.slice(0, 3).map((threat) => (
                 <div
                   key={threat.id}
-                  className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border/30 hover:bg-primary/[0.03] hover:border-primary/15 transition-all duration-300 group"
+                  className="flex items-center justify-between p-3 sm:p-4 rounded-xl bg-muted/30 border border-border/30 hover:bg-primary/[0.03] hover:border-primary/15 transition-all duration-300 gap-3 group"
                 >
-                  <div>
-                    <p className="text-sm font-semibold text-card-foreground group-hover:text-primary transition-colors">{threat.id}</p>
-                    <p className="text-[11px] text-muted-foreground line-clamp-1">{threat.description}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs sm:text-sm font-semibold text-card-foreground group-hover:text-primary transition-colors truncate">{threat.id}</p>
+                    <p className="text-[10px] sm:text-[11px] text-muted-foreground line-clamp-1">{threat.description}</p>
                   </div>
                   <span className={cn(
-                    "px-2.5 py-1 text-[10px] font-bold rounded-lg border uppercase tracking-wider badge-glow",
+                    "px-2 py-0.5 sm:px-2.5 sm:py-1 text-[9px] sm:text-[10px] font-bold rounded-lg border uppercase tracking-wider flex-shrink-0 badge-glow",
                     threat.severity === "critical" && "bg-destructive/10 text-destructive border-destructive/20",
                     threat.severity === "high" && "bg-chart-3/10 text-chart-3 border-chart-3/20",
                     threat.severity === "medium" && "bg-warning/10 text-warning border-warning/20",
@@ -191,12 +191,13 @@ export function AttackTabs() {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground text-center py-8">
+            <p className="text-xs sm:text-sm text-muted-foreground text-center py-6 sm:py-8">
               No recent alerts for this attack type
             </p>
           )}
         </div>
       </div>
+
     </div>
   );
 }

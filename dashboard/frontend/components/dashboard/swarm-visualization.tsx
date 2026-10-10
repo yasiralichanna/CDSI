@@ -200,17 +200,17 @@ export function SwarmVisualization({ agents = [] }: { agents?: Agent[] }) {
 
     animate();
 
-    // Mouse interaction
-    const handleMouseMove = (e: MouseEvent) => {
+    // Mouse & Touch interaction
+    const checkPointForAgent = (clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
 
       let found: Agent | null = null;
       for (const node of nodesRef.current) {
         const dx = node.x - x;
         const dy = node.y - y;
-        if (Math.sqrt(dx * dx + dy * dy) < 15) {
+        if (Math.sqrt(dx * dx + dy * dy) < 22) { // 22px hit area for easy touch targeting
           found = node.agent;
           break;
         }
@@ -218,49 +218,71 @@ export function SwarmVisualization({ agents = [] }: { agents?: Agent[] }) {
       setHoveredAgent(found);
     };
 
+    const handleMouseMove = (e: MouseEvent) => {
+      checkPointForAgent(e.clientX, e.clientY);
+    };
+
+    const handleTouch = (e: TouchEvent) => {
+      if (e.touches && e.touches[0]) {
+        checkPointForAgent(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    };
+
     canvas.addEventListener("mousemove", handleMouseMove);
+    canvas.addEventListener("touchstart", handleTouch, { passive: true });
+    canvas.addEventListener("touchmove", handleTouch, { passive: true });
 
     return () => {
       window.removeEventListener("resize", resizeCanvas);
       canvas.removeEventListener("mousemove", handleMouseMove);
+      canvas.removeEventListener("touchstart", handleTouch);
+      canvas.removeEventListener("touchmove", handleTouch);
       cancelAnimationFrame(animationRef.current);
     };
   }, [agents]);
 
   return (
-    <div className="relative card-3d p-5">
-      <h3 className="text-sm font-semibold text-card-foreground mb-3 flex items-center gap-2">
-        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-        Swarm Network Status
-      </h3>
-      <div className="relative aspect-square rounded-xl overflow-hidden bg-gradient-to-br from-primary/[0.02] to-neon-purple/[0.02]">
+    <div className="relative card-3d p-3.5 sm:p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-card-foreground flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+          Swarm Network Status
+        </h3>
+        <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-mono">
+          {agents.length} nodes
+        </span>
+      </div>
+      <div className="relative aspect-[4/3] sm:aspect-square max-h-[340px] rounded-xl overflow-hidden bg-gradient-to-br from-primary/[0.02] to-neon-purple/[0.02]">
         <canvas
           ref={canvasRef}
-          className="w-full h-full cursor-crosshair"
+          className="w-full h-full cursor-crosshair touch-none"
         />
         {hoveredAgent && (
-          <div className="absolute top-3 right-3 glass-panel rounded-xl p-3 text-xs neon-glow-cyan">
-            <p className="font-semibold text-foreground">{hoveredAgent.name}</p>
-            <p className="text-muted-foreground mt-1">ID: {hoveredAgent.id}</p>
-            <p className="text-muted-foreground">Trust: <span className="text-primary font-medium">{hoveredAgent.trustScore}%</span></p>
-            <p className="text-muted-foreground">Load: <span className="text-primary font-medium">{hoveredAgent.currentLoad}%</span></p>
+          <div className="absolute top-2 right-2 sm:top-3 sm:right-3 glass-panel rounded-xl p-2.5 sm:p-3 text-[11px] sm:text-xs neon-glow-cyan max-w-[200px] z-10 shadow-lg">
+            <p className="font-semibold text-foreground truncate">{hoveredAgent.name}</p>
+            <p className="text-muted-foreground mt-0.5 font-mono text-[10px]">ID: {hoveredAgent.id}</p>
+            <div className="mt-1 flex items-center justify-between gap-2 text-muted-foreground">
+              <span>Trust: <strong className="text-primary">{hoveredAgent.trustScore}%</strong></span>
+              <span>Load: <strong className="text-primary">{hoveredAgent.currentLoad}%</strong></span>
+            </div>
           </div>
         )}
       </div>
-      <div className="flex items-center justify-center gap-6 mt-4 text-xs">
-        <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-success neon-glow-green" />
+      <div className="flex items-center justify-center flex-wrap gap-3 sm:gap-6 mt-3 sm:mt-4 text-[11px] sm:text-xs">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full bg-success neon-glow-green" />
           <span className="text-muted-foreground font-medium">Active</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-warning" />
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full bg-warning" />
           <span className="text-muted-foreground font-medium">Degraded</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-destructive neon-glow-red" />
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full bg-destructive neon-glow-red" />
           <span className="text-muted-foreground font-medium">Offline</span>
         </div>
       </div>
     </div>
   );
 }
+

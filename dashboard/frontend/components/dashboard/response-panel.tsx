@@ -72,20 +72,20 @@ export function ResponsePanel({ responses = [] }: { responses?: AutomatedRespons
             const ActionIcon = action.icon;
 
             return (
-              <div key={response.id} className="p-4 transition-all duration-300 hover:bg-success/[0.02]">
-                <div className="flex items-start gap-3">
+              <div key={response.id} className="p-3.5 sm:p-4 transition-all duration-300 hover:bg-success/[0.02]">
+                <div className="flex items-start gap-2.5 sm:gap-3">
                   <div className={cn(
-                    "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-300 hover:scale-110",
+                    "w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-300 hover:scale-110",
                     response.success
                       ? "bg-success/10 text-success"
                       : "bg-destructive/10 text-destructive"
                   )}>
-                    <ActionIcon className="w-4 h-4" />
+                    <ActionIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-card-foreground">{action.label}</span>
+                        <span className="text-xs sm:text-sm font-semibold text-card-foreground">{action.label}</span>
                         {response.success ? (
                           <CheckCircle className="w-3.5 h-3.5 text-success" />
                         ) : (
@@ -98,14 +98,14 @@ export function ResponsePanel({ responses = [] }: { responses?: AutomatedRespons
                         </span>
                       )}
                     </div>
-                    <p className="text-[11px] font-mono text-primary font-medium mt-0.5">
+                    <p className="text-[10px] sm:text-[11px] font-mono text-primary font-medium mt-0.5">
                       Target Threat: {response.threatId}
                     </p>
                     <div className="mt-2 p-2.5 rounded-lg bg-muted/40 border border-border/30 text-left">
-                      <p className="text-xs text-card-foreground/90 font-medium leading-relaxed">
+                      <p className="text-[11px] sm:text-xs text-card-foreground/90 font-medium leading-relaxed">
                         {response.details || action.description}
                       </p>
-                      <p className="text-[10px] text-muted-foreground mt-1 font-mono">
+                      <p className="text-[9px] sm:text-[10px] text-muted-foreground mt-1 font-mono">
                         Action Policy: {action.description}
                       </p>
                     </div>
@@ -113,6 +113,7 @@ export function ResponsePanel({ responses = [] }: { responses?: AutomatedRespons
                 </div>
               </div>
             );
+
           })
         )}
       </div>

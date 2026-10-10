@@ -14,6 +14,7 @@ import { MitreAttackPanel } from "@/components/dashboard/mitre-attack-panel";
 import { AuditLogs } from "@/components/dashboard/audit-logs";
 import { AttackTabs } from "@/components/dashboard/attack-tabs";
 import { useSwarmData } from "@/hooks/use-swarm-data";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   Bot,
   AlertTriangle,
@@ -29,11 +30,13 @@ import {
   Target,
   Clock,
   WifiOff,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 
 type TabId = "overview" | "agents" | "threats" | "consensus" | "attacks" | "responses" | "intel" | "logs";
+
 
 interface NavItem {
   id: TabId;
@@ -54,6 +57,7 @@ const navItems: NavItem[] = [
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const {
     agents,
     threats,
@@ -71,13 +75,13 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-neon-purple flex items-center justify-center animate-float neon-glow-cyan">
-              <Activity className="w-7 h-7 text-white" />
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-primary to-neon-purple flex items-center justify-center animate-float neon-glow-cyan">
+              <Activity className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
             </div>
-            <div className="absolute inset-0 w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-neon-purple animate-ping opacity-20" />
+            <div className="absolute inset-0 w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-primary to-neon-purple animate-ping opacity-20" />
           </div>
           <div className="text-center mt-2">
             <p className="text-sm font-semibold gradient-text">Initializing CDSI Swarm</p>
@@ -100,10 +104,108 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <DashboardHeader />
+      <DashboardHeader
+        connectionStatus={connectionStatus}
+        isStale={isStale}
+        onOpenMobileMenu={() => setMobileMenuOpen(true)}
+      />
+
+      {/* Mobile Drawer Navigation */}
+      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+        <SheetContent side="left" className="w-[300px] sm:w-[350px] p-0 glass-panel border-r border-border/50 flex flex-col z-50">
+          <SheetHeader className="p-5 border-b border-border/50 text-left">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-neon-purple flex items-center justify-center neon-glow-cyan shadow-sm">
+                <Shield className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <SheetTitle className="text-base font-bold gradient-text">CDSI Navigation</SheetTitle>
+                <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Cyber Defense Swarm</p>
+              </div>
+            </div>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-y-auto p-3 space-y-1">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setActiveTab(item.id);
+                    setMobileMenuOpen(false);
+                  }}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3.5 py-3 text-sm font-medium rounded-xl transition-all duration-200 text-left",
+                    isActive
+                      ? "bg-gradient-to-r from-primary/10 to-neon-purple/5 text-primary border border-primary/15 font-semibold shadow-sm"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  )}
+                >
+                  <Icon className={cn("w-4 h-4 transition-transform", isActive && "text-primary scale-110")} />
+                  <span>{item.label}</span>
+                  {isActive && (
+                    <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="p-4 border-t border-border/50">
+            <div className="p-3.5 rounded-xl bg-gradient-to-br from-primary/[0.04] to-neon-purple/[0.04] border border-primary/10">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Activity className="w-3.5 h-3.5 text-primary" />
+                  <span className="text-[10px] font-bold text-foreground uppercase tracking-wider">System Status</span>
+                </div>
+                {isStale && (
+                  <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-amber-500/10 text-amber-500 border border-amber-500/20 uppercase tracking-wider">
+                    Stale
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2 w-2">
+                  <span className={cn(
+                    "animate-ping absolute inline-flex h-full w-full rounded-full opacity-75",
+                    connectionStatus === "connected" && "bg-success",
+                    (connectionStatus === "connecting" || connectionStatus === "reconnecting") && "bg-amber-500",
+                    connectionStatus === "disconnected" && "bg-destructive"
+                  )} />
+                  <span className={cn(
+                    "relative inline-flex rounded-full h-2 w-2",
+                    connectionStatus === "connected" && "bg-success",
+                    (connectionStatus === "connecting" || connectionStatus === "reconnecting") && "bg-amber-500",
+                    connectionStatus === "disconnected" && "bg-destructive"
+                  )} />
+                </span>
+                <span className={cn(
+                  "text-xs font-semibold",
+                  connectionStatus === "connected" && "text-success",
+                  (connectionStatus === "connecting" || connectionStatus === "reconnecting") && "text-amber-500",
+                  connectionStatus === "disconnected" && "text-destructive"
+                )}>
+                  {connectionStatus === "connected" && "Backend Connected"}
+                  {connectionStatus === "connecting" && "Connecting..."}
+                  {connectionStatus === "reconnecting" && "Reconnecting..."}
+                  {connectionStatus === "disconnected" && "Backend Offline"}
+                </span>
+              </div>
+              {lastUpdated && (
+                <p className="text-[10px] text-muted-foreground mt-2 flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  Updated {formatDistanceToNow(new Date(lastUpdated), { addSuffix: true })}
+                </p>
+              )}
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <div className="flex">
-        {/* Sidebar */}
+        {/* Desktop Sidebar */}
         <aside className="hidden lg:flex flex-col w-60 border-r border-border/50 glass-panel min-h-[calc(100vh-4rem)] sticky top-16">
           <nav className="flex-1 p-4">
             <div className="space-y-1">
@@ -184,28 +286,29 @@ export default function DashboardPage() {
           </div>
         </aside>
 
-        {/* Mobile Nav */}
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 glass-panel border-t border-border/50">
-          <div className="flex overflow-x-auto">
-            {navItems.slice(0, 5).map((item) => {
+        {/* Mobile Bottom Navigation Bar (All 8 items smoothly scrollable with safe area) */}
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 glass-panel border-t border-border/50 pb-safe shadow-lg">
+          <div className="flex overflow-x-auto no-scrollbar touch-scroll px-1.5 py-1.5 gap-1">
+            {navItems.map((item) => {
               const Icon = item.icon;
+              const isActive = activeTab === item.id;
               return (
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
                   className={cn(
-                    "flex-1 flex flex-col items-center gap-1 py-3 px-2 text-xs font-semibold transition-all duration-300 min-w-[64px]",
-                    activeTab === item.id
-                      ? "text-primary"
-                      : "text-muted-foreground"
+                    "flex-1 flex flex-col items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-[10px] sm:text-xs font-semibold transition-all duration-200 min-w-[62px] sm:min-w-[72px] flex-shrink-0",
+                    isActive
+                      ? "text-primary bg-primary/10 shadow-sm"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
                   )}
                 >
                   <Icon className={cn(
-                    "w-5 h-5 transition-transform duration-300",
-                    activeTab === item.id && "scale-110"
+                    "w-4 h-4 sm:w-5 sm:h-5 transition-transform duration-200",
+                    isActive && "scale-110 text-primary"
                   )} />
-                  <span>{item.label}</span>
-                  {activeTab === item.id && (
+                  <span className="truncate max-w-[60px] sm:max-w-none">{item.label}</span>
+                  {isActive && (
                     <div className="w-1 h-1 rounded-full bg-primary" />
                   )}
                 </button>
@@ -215,26 +318,27 @@ export default function DashboardPage() {
         </div>
 
         {/* Main Content */}
-        <main className="flex-1 p-6 pb-24 lg:pb-6">
+        <main className="flex-1 p-3 sm:p-5 lg:p-6 pb-28 lg:pb-8 min-w-0 max-w-full">
           {isStale && lastUpdated && (
-            <div className="mb-6 p-3 px-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs font-medium flex items-center justify-between gap-3">
+            <div className="mb-4 sm:mb-6 p-3 px-3.5 sm:px-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs font-medium flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
               <div className="flex items-center gap-2">
                 <WifiOff className="w-4 h-4 shrink-0" />
-                <span>Backend connection interrupted. Displaying cached data from {lastUpdated ? formatDistanceToNow(new Date(lastUpdated), { addSuffix: true }) : "previous sync"}.</span>
+                <span className="text-[11px] sm:text-xs">Backend connection interrupted. Displaying cached data from {lastUpdated ? formatDistanceToNow(new Date(lastUpdated), { addSuffix: true }) : "previous sync"}.</span>
               </div>
-              <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-amber-500/20 font-bold">Stale Mode</span>
+              <span className="text-[9px] uppercase font-mono px-2 py-0.5 rounded bg-amber-500/20 font-bold self-start sm:self-auto">Stale Mode</span>
             </div>
           )}
 
           {activeTab === "overview" && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               <div>
-                <h2 className="text-xl font-bold text-foreground tracking-tight">Global Overview</h2>
-                <p className="text-sm text-muted-foreground mt-0.5">Real-time swarm intelligence status</p>
+                <h2 className="text-lg sm:text-xl font-bold text-foreground tracking-tight">Global Overview</h2>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Real-time swarm intelligence status</p>
               </div>
 
               {/* Stats Grid */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+
                 <StatCard
                   title="Active Agents"
                   value={agents.length > 0 ? `${activeAgents}/${agents.length}` : "0/0"}
@@ -270,12 +374,12 @@ export default function DashboardPage() {
               </div>
 
               {/* Main Grid */}
-              <div className="grid lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 space-y-6">
+              <div className="grid lg:grid-cols-3 gap-4 sm:gap-6">
+                <div className="lg:col-span-2 space-y-4 sm:space-y-6">
                   <AgentTable agents={agents} />
                   <ThreatFeed threats={threats} connectionStatus={connectionStatus} isStale={isStale} />
                 </div>
-                <div className="space-y-6">
+                <div className="space-y-4 sm:space-y-6">
                   <SwarmVisualization agents={agents} />
                   <ResponsePanel responses={responses} />
                 </div>
@@ -284,35 +388,35 @@ export default function DashboardPage() {
           )}
 
           {activeTab === "agents" && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               <div>
-                <h2 className="text-xl font-bold text-foreground tracking-tight">Agent Control Panel</h2>
-                <p className="text-sm text-muted-foreground mt-0.5">Monitor and manage all swarm agents</p>
+                <h2 className="text-lg sm:text-xl font-bold text-foreground tracking-tight">Agent Control Panel</h2>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Monitor and manage all swarm agents</p>
               </div>
               <AgentTable agents={agents} />
-              <div className="grid lg:grid-cols-2 gap-6">
+              <div className="grid lg:grid-cols-2 gap-4 sm:gap-6">
                 <SwarmVisualization agents={agents} />
-                <div className="card-3d p-5">
+                <div className="card-3d p-3.5 sm:p-5">
                   <h3 className="text-sm font-semibold text-card-foreground mb-4 flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
                     Agent Performance
                   </h3>
-                  <div className="space-y-4">
+                  <div className="space-y-3 sm:space-y-4">
                     {agents.length === 0 ? (
                       <p className="text-xs text-muted-foreground text-center py-8">No backend agents active</p>
                     ) : (
                       agents.map((agent) => (
-                        <div key={agent.id} className="flex items-center gap-4 group">
-                          <div className="w-20">
-                            <p className="text-xs font-semibold text-card-foreground group-hover:text-primary transition-colors">{agent.id}</p>
+                        <div key={agent.id} className="flex items-center gap-2.5 sm:gap-4 group">
+                          <div className="w-16 sm:w-20 flex-shrink-0">
+                            <p className="text-xs font-semibold text-card-foreground group-hover:text-primary transition-colors truncate">{agent.id}</p>
                           </div>
-                          <div className="flex-1 h-2.5 bg-muted rounded-full overflow-hidden">
+                          <div className="flex-1 h-2 sm:h-2.5 bg-muted rounded-full overflow-hidden">
                             <div
                               className="h-full bg-gradient-to-r from-primary to-neon-purple rounded-full transition-all duration-700"
                               style={{ width: `${agent.detectionAccuracy}%` }}
                             />
                           </div>
-                          <span className="text-xs text-muted-foreground w-12 text-right font-semibold">
+                          <span className="text-[11px] sm:text-xs text-muted-foreground w-10 sm:w-12 text-right font-semibold">
                             {agent.detectionAccuracy}%
                           </span>
                         </div>
@@ -325,64 +429,65 @@ export default function DashboardPage() {
           )}
 
           {activeTab === "threats" && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               <div>
-                <h2 className="text-xl font-bold text-foreground tracking-tight">Live Threat Feed</h2>
-                <p className="text-sm text-muted-foreground mt-0.5">Real-time threat detection and status</p>
+                <h2 className="text-lg sm:text-xl font-bold text-foreground tracking-tight">Live Threat Feed</h2>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Real-time threat detection and status</p>
               </div>
               <ThreatFeed threats={threats} connectionStatus={connectionStatus} isStale={isStale} />
             </div>
           )}
 
           {activeTab === "consensus" && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               <div>
-                <h2 className="text-xl font-bold text-foreground tracking-tight">Swarm Consensus View</h2>
-                <p className="text-sm text-muted-foreground mt-0.5">Trust-weighted voting and decision making</p>
+                <h2 className="text-lg sm:text-xl font-bold text-foreground tracking-tight">Swarm Consensus View</h2>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Trust-weighted voting and decision making</p>
               </div>
               <ConsensusView decisions={consensus} agents={agents} />
             </div>
           )}
 
           {activeTab === "attacks" && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               <div>
-                <h2 className="text-xl font-bold text-foreground tracking-tight">Attack Type Analysis</h2>
-                <p className="text-sm text-muted-foreground mt-0.5">Detection trends by attack category</p>
+                <h2 className="text-lg sm:text-xl font-bold text-foreground tracking-tight">Attack Type Analysis</h2>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Detection trends by attack category</p>
               </div>
               <AttackTabs />
             </div>
           )}
 
           {activeTab === "responses" && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               <div>
-                <h2 className="text-xl font-bold text-foreground tracking-tight">Automated Response Panel</h2>
-                <p className="text-sm text-muted-foreground mt-0.5">System actions and rollback options</p>
+                <h2 className="text-lg sm:text-xl font-bold text-foreground tracking-tight">Automated Response Panel</h2>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">System actions and rollback options</p>
               </div>
               <ResponsePanel responses={responses} />
             </div>
           )}
 
           {activeTab === "intel" && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               <div>
-                <h2 className="text-xl font-bold text-foreground tracking-tight">Threat Intelligence</h2>
-                <p className="text-sm text-muted-foreground mt-0.5">MITRE ATT&CK mapping and kill chain analysis</p>
+                <h2 className="text-lg sm:text-xl font-bold text-foreground tracking-tight">Threat Intelligence</h2>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">MITRE ATT&CK mapping and kill chain analysis</p>
               </div>
               <MitreAttackPanel />
             </div>
           )}
 
           {activeTab === "logs" && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               <div>
-                <h2 className="text-xl font-bold text-foreground tracking-tight">Audit Logs</h2>
-                <p className="text-sm text-muted-foreground mt-0.5">Complete action history with AI reasoning</p>
+                <h2 className="text-lg sm:text-xl font-bold text-foreground tracking-tight">Audit Logs</h2>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Complete action history with AI reasoning</p>
               </div>
               <AuditLogs />
             </div>
           )}
+
         </main>
       </div>
     </div>
